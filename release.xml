@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assembly>
+	<id>all</id>
+	<baseDirectory>mlnotebookmanager-all</baseDirectory>
+	<formats>
+		<format>dir</format>
+		<format>tar.gz</format>
+	</formats>
+	<fileSets>
+		<fileSet>
+			<includes>
+				<include>bin/*</include>
+				<include>conf/**</include>
+				<include>lib/**</include>
+			</includes>
+		</fileSet>
+	</fileSets>
+
+	<moduleSets>
+		<moduleSet>
+			<includes>
+				<include>com.dingcloud.mlnotebookmanager:mlnotebookmanager-server</include>
+			</includes>
+			<binaries>
+				<outputDirectory>lib/</outputDirectory>
+				<unpack>false</unpack>
+				<dependencySets>
+					<dependencySet>
+						<outputDirectory>lib/</outputDirectory>
+					</dependencySet>
+				</dependencySets>
+			</binaries>
+		</moduleSet>
+	</moduleSets>
+</assembly>

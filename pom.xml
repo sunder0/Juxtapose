@@ -12,6 +12,8 @@
 
     <modules>
         <module>juxtapose-common</module>
+        <module>juxtapose-client</module>
+        <module>juxtapose-server</module>
     </modules>
 
     <properties>
@@ -24,6 +26,7 @@
 
         <maven.test.skip>true</maven.test.skip>
         <logback.version>1.2.3</logback.version>
+        <slf4j.version>1.7.21</slf4j.version>
 
         <spring-boot.version>2.4.0</spring-boot.version>
         <spring-cloud.version>2020.0.3</spring-cloud.version>
@@ -64,13 +67,13 @@
                 <version>${mybatis-plus-spring-boot-starter.version}</version>
             </dependency>
             <dependency>
-                <groupId>ch.qos.logback</groupId>
-                <artifactId>logback-classic</artifactId>
-                <version>${logback.version}</version>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version> <!-- 最新稳定版 -->
             </dependency>
             <dependency>
                 <groupId>ch.qos.logback</groupId>
-                <artifactId>logback-core</artifactId>
+                <artifactId>logback-classic</artifactId>
                 <version>${logback.version}</version>
             </dependency>
             <dependency>
@@ -109,10 +112,20 @@
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
             </dependency>
+<!--            <dependency>-->
+<!--                <groupId>com.alibaba</groupId>-->
+<!--                <artifactId>druid-spring-boot-starter</artifactId>-->
+<!--                <version>${druid.version}</version>-->
+<!--            </dependency>-->
             <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>druid-spring-boot-starter</artifactId>
-                <version>${druid.version}</version>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-all</artifactId>
+                <version>4.1.77.Final</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sunder.juxtapose</groupId>
+                <artifactId>juxtapose-common</artifactId>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

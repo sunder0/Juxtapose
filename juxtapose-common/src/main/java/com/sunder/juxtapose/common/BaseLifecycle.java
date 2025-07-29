@@ -1,4 +1,4 @@
-package com.sunder.juxtapose;
+package com.sunder.juxtapose.common;
 
 import cn.hutool.core.lang.Assert;
 
@@ -13,15 +13,15 @@ import java.util.stream.Collectors;
  * @author : denglinhai
  * @date : 22:23 2025/07/10
  */
-public abstract class AbstractLifecycle implements Lifecycle {
+public abstract class BaseLifecycle implements Lifecycle {
     private LifecycleState state = LifecycleState.NEW;
     private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
-    protected ReentrantLock lock = new ReentrantLock(false);
+    protected ReentrantLock lock = new ReentrantLock();
 
-    public AbstractLifecycle() {
+    public BaseLifecycle() {
     }
 
-    public AbstractLifecycle(LifecycleListener... listeners) {
+    public BaseLifecycle(LifecycleListener... listeners) {
         Assert.notNull(listeners, "Listeners not null!");
         List<LifecycleListener> filter = Arrays.stream(listeners).filter(Objects::nonNull).collect(Collectors.toList());
         this.listeners.addAll(filter);

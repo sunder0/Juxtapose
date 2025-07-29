@@ -1,4 +1,4 @@
-package com.sunder.juxtapose;
+package com.sunder.juxtapose.common;
 
 /**
  * @author : denglinhai
