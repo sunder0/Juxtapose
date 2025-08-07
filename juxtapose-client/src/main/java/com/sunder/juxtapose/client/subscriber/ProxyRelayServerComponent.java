@@ -4,7 +4,7 @@ import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyMessageReceiver;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestSubscriber;
-import com.sunder.juxtapose.common.BaseComponent;
+import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.handler.RelayMessageWriteEncoder;
@@ -33,12 +33,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author : denglinhai
  * @date : 15:38 2023/7/5
  */
-public class ProxyRelayServerComponent extends BaseComponent<ProxyCoreComponent> implements ProxyRequestSubscriber,
-        ProxyMessageReceiver {
+public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreComponent>
+        implements ProxyRequestSubscriber, ProxyMessageReceiver {
     public final static String NAME = "PROXY_REPLAY_SERVER_COMPONENT";
 
     private final String host;
     private final Integer port;
+    private CertComponent certComponent;
     private SocketChannel relayChannel; // 和中继服务器通信的channel
     private final Map<Long, ProxyRequest> activeProxy = new ConcurrentHashMap<>(16); // 活跃的代理
 
@@ -48,6 +49,14 @@ public class ProxyRelayServerComponent extends BaseComponent<ProxyCoreComponent>
         this.port = port;
 
         parent.registerProxyRequestSubscriber(this);
+    }
+
+    @Override
+    protected void initInternal() {
+        this.certComponent = new CertComponent(this);
+        addChildComponent(certComponent);
+
+        super.initInternal();
     }
 
     @Override
@@ -62,6 +71,7 @@ public class ProxyRelayServerComponent extends BaseComponent<ProxyCoreComponent>
                 @Override
                 protected void initChannel(SocketChannel socketChannel) throws Exception {
                     ChannelPipeline pipeline = socketChannel.pipeline();
+                    pipeline.addLast(certComponent.getSslContext().newHandler(socketChannel.alloc(), host, port));
                     pipeline.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                             Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                     pipeline.addLast(new ProxyRelayMessageHandler());
@@ -135,4 +145,11 @@ public class ProxyRelayServerComponent extends BaseComponent<ProxyCoreComponent>
         }
     }
 
+    public String getHost() {
+        return host;
+    }
+
+    public Integer getPort() {
+        return port;
+    }
 }

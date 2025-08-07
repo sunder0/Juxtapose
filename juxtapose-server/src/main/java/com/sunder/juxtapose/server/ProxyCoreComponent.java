@@ -32,6 +32,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
 
     private String host;
     private int port;
+    private CertComponent certComponent;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workGroup;
     private SocketChannel socketChannel;
@@ -50,6 +51,9 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
         bossGroup = new NioEventLoopGroup(1);
         workGroup = new NioEventLoopGroup(4);
 
+        certComponent = new CertComponent(this);
+        addChildComponent(certComponent);
+
         dispatcher = new TcpProxyDispatchComponent(this);
         addChildComponent(dispatcher);
 
@@ -66,6 +70,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
                         @Override
                         protected void initChannel(SocketChannel channel) {
                             ChannelPipeline cp = channel.pipeline();
+                            cp.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
                             cp.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                                     Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                             cp.addLast(RelayMessageWriteEncoder.INSTANCE);

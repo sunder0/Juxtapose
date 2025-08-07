@@ -1,5 +1,7 @@
 package com.sunder.juxtapose.common;
 
+import io.netty.util.internal.PlatformDependent;
+
 /**
  * @author : denglinhai
  * @date : 00:22 2025/07/11
@@ -13,8 +15,7 @@ public interface Platform {
      * @return boolean
      */
     default boolean isWindows() {
-        String os = System.getProperty("os.name").toLowerCase();
-        return os.contains("win");
+        return PlatformDependent.isWindows();
     }
 
     /**
@@ -23,7 +24,6 @@ public interface Platform {
      * @return boolean
      */
     default boolean isUnix() {
-        String os = System.getProperty("os.name").toLowerCase();
-        return os.contains("nix") || os.contains("nux") || os.contains("aix") || os.contains("mac");
+        return PlatformDependent.isOsx();
     }
 }
