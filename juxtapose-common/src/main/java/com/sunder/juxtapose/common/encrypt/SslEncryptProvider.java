@@ -52,7 +52,7 @@ public class SslEncryptProvider {
     }
 
     static class PEMSslEncryptor implements SslEncryptor {
-        public final static String NAME = "PEM_ENCRYPTOR";
+        public final static String NAME = "pem";
 
         @Override
         public SslContext buildSslContext(ClientAuth clientAuth, Map<String, Object> encrypt) throws Exception {
@@ -98,7 +98,7 @@ public class SslEncryptProvider {
     }
 
     static class JksSslEncryptor implements SslEncryptor {
-        public final static String NAME = "JKS_ENCRYPTOR";
+        public final static String NAME = "jks";
 
         @Override
         public SslContext buildSslContext(ClientAuth clientAuth, Map<String, Object> encrypt) throws Exception {

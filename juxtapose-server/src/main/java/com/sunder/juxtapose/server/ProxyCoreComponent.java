@@ -4,12 +4,17 @@ package com.sunder.juxtapose.server;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
+import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import com.sunder.juxtapose.common.handler.RelayMessageWriteEncoder;
+import com.sunder.juxtapose.common.mesage.AuthRequestMessage;
+import com.sunder.juxtapose.common.mesage.AuthResponseMessage;
 import com.sunder.juxtapose.common.mesage.Message;
 import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.server.conf.ServerConfig;
+import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -19,7 +24,6 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.bootstrap.ServerBootstrap;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
 
@@ -29,6 +33,9 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
  */
 public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.juxtapose.server.ServerBootstrap> {
     public final static String NAME = "PROXY_CORE_COMPONENT";
+
+    // 认证策略，后续改成从DB获取
+    private AuthenticationStrategy authStrategy = new SimpleAuthenticationStrategy("root", "root");
 
     private String host;
     private int port;
@@ -125,6 +132,13 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
                     ctx.writeAndFlush(new PongMessage(), ctx.voidPromise());
                 } else if (serviceId == PongMessage.SERVICE_ID) {
                     new PongMessage(byteBuf);
+                } else if (serviceId == AuthRequestMessage.SERVICE_ID) {
+                    AuthRequestMessage message = new AuthRequestMessage(byteBuf);
+                    if (authStrategy.checkPermission(message.getUserName(), message.getPassword())) {
+                        ctx.writeAndFlush(new AuthResponseMessage(true));
+                    } else {
+                        ctx.writeAndFlush(new AuthResponseMessage(false, "401"));
+                    }
                 } else if (serviceId == ProxyRequestMessage.SERVICE_ID) {
                     ProxyRequestMessage message = new ProxyRequestMessage(byteBuf);
                     ProxyTaskRequest request = new ProxyTaskRequest(message, ProxyCoreComponent.this.socketChannel);

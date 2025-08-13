@@ -10,6 +10,15 @@ import com.sunder.juxtapose.common.Named;
 public interface ProxyRequestSubscriber extends Named {
 
     /**
+     * socks5代理
+     */
+    String SOCKS5_PROXY = "Socks5";
+    /**
+     * http代理
+     */
+    String HTTP_PROXY = "Http";
+
+    /**
      * 订阅一个请求代理
      *
      * @param request 代理请求

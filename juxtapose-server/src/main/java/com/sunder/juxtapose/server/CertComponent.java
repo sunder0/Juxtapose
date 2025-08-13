@@ -58,12 +58,12 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
     public final static String NAME = "CERT_COMPONENT";
     private final Logger logger = LoggerFactory.getLogger(CertComponent.class);
 
+    // ca证书存放路径
     private final String SERVER_CRT = "conf/ssl/server.crt";
     private final String SERVER_KEY = "conf/ssl/server.key";
-    // 下载的ca证书存放路径
     private final String CA_CRT = "conf/ssl/ca.crt";
-    private String host = "0.0.0.0";
-    private Integer port = 1202;
+    private String host;
+    private Integer port;
     private SslContext sslContext;
     private EventLoopGroup workerGroup;
 
@@ -76,7 +76,9 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
         workerGroup = new NioEventLoopGroup(1);
 
         ServerConfig cfg = getConfigManager().getConfigByName(ServerConfig.NAME, ServerConfig.class);
-        SslEncryptor sslEncryptor = SslEncryptProvider.provider("PEM_ENCRYPTOR");
+        SslEncryptor sslEncryptor = SslEncryptProvider.provider(cfg.getEncryptMethod());
+        this.host = cfg.getRelayServerHost();
+        this.port = cfg.getEncryptServerPort();
 
         ClassPathResource serverCrt = new ClassPathResource(SERVER_CRT);
         ClassPathResource serverKey = new ClassPathResource(SERVER_KEY);
@@ -114,7 +116,7 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
                 }
             });
 
-            boot.bind(port).addListener(f -> {
+            boot.bind(host, port).addListener(f -> {
                 if (f.isSuccess()) {
                     logger.info("Cert file server start successful!");
                 } else {
@@ -156,7 +158,7 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
                 sendError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED);
                 return;
             }
-            //todo: 扩展不通的文件
+            // todo: 扩展不同的文件
             ClassPathResource resource;
             try {
                 resource = new ClassPathResource(this.classPath);

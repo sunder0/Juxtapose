@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.client.subscriber;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
 import com.sunder.juxtapose.client.conf.ClientConfig;
@@ -11,6 +12,10 @@ import com.sunder.juxtapose.common.encrypt.SslEncryptProvider.SslEncryptor;
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContext;
 
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -21,8 +26,6 @@ import java.util.Objects;
  */
 public class CertComponent extends BaseComponent<ProxyRelayServerComponent> {
     public final static String NAME = "CERT_COMPONENT";
-    // private final String SERVER_CRT = "conf/ssl/server.crt";
-    // private final String SERVER_KEY = "conf/ssl/server.key";
     // 下载的ca证书存放路径
     private final String CA_CRT = "conf/ssl/ca.crt";
     private SslContext sslContext;
@@ -34,16 +37,25 @@ public class CertComponent extends BaseComponent<ProxyRelayServerComponent> {
     @Override
     protected void initInternal() {
         ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
-        SslEncryptor sslEncryptor = SslEncryptProvider.provider("PEM_ENCRYPTOR");
+        SslEncryptor sslEncryptor = SslEncryptProvider.provider(cfg.getEncryptMethod());
 
         Map<String, Object> encrypt = new HashMap<>(4);
         encrypt.put("server", false);
 
-        try (HttpResponse response = HttpUtil.createGet(
-                String.format("http://{%s}:%s/ca.crt", parent.getHost(), parent.getPort())).execute()) {
-            encrypt.put("ca.crt", response.bodyStream());
+        URL cacrt = getClass().getClassLoader().getResource(CA_CRT);
+        if (cacrt == null) {
+            try (HttpResponse response = HttpUtil.createGet(
+                    String.format("http://{%s}:%s/ca.crt", parent.getHost(), parent.getPort())).execute()) {
+                URL classpathRoot = getClass().getClassLoader().getResource("");
+                Path path = Paths.get(classpathRoot.toURI()).resolve(CA_CRT);
+                FileUtil.writeString(response.body(), path.toFile(), StandardCharsets.UTF_8);
+                cacrt = path.toUri().toURL();
+            } catch (Exception ex) {
+                throw new ComponentException("Load ssl ca.crt error!", ex);
+            }
         }
         try {
+            encrypt.put("ca.crt", cacrt.openStream());
             sslContext = sslEncryptor.buildSslContext(ClientAuth.NONE, encrypt);
         } catch (Exception ex) {
             throw new ComponentException("Init ssl encryptor fail!", ex);

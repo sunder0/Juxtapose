@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 public class ClientConfig extends BaseConfig {
     public final static String NAME = "CLIENT_CONFIG";
     private final static String SOCKS_GROUP = "Socks5";
+    private final static String ENCRYPT_GROUP = "Encrypt";
 
     private final String CLIENT_CONFIG_FILE = "conf/client.properties";
     private Setting config; // 存储整个client.properties的配置
@@ -64,6 +65,10 @@ public class ClientConfig extends BaseConfig {
 
     public String getSocks5Pwd() {
         return config.getStr("socks.password", SOCKS_GROUP, "1");
+    }
+
+    public String getEncryptMethod() {
+        return config.getStr("encrypt.method", ENCRYPT_GROUP, "pem");
     }
 
 }

@@ -4,10 +4,14 @@ import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyMessageReceiver;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestSubscriber;
+import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.handler.RelayMessageWriteEncoder;
+import com.sunder.juxtapose.common.mesage.AuthRequestMessage;
+import com.sunder.juxtapose.common.mesage.AuthResponseMessage;
 import com.sunder.juxtapose.common.mesage.Message;
 import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
@@ -37,16 +41,14 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
         implements ProxyRequestSubscriber, ProxyMessageReceiver {
     public final static String NAME = "PROXY_REPLAY_SERVER_COMPONENT";
 
-    private final String host;
-    private final Integer port;
+    private final ProxyServerNodeConfig cfg;
     private CertComponent certComponent;
     private SocketChannel relayChannel; // 和中继服务器通信的channel
     private final Map<Long, ProxyRequest> activeProxy = new ConcurrentHashMap<>(16); // 活跃的代理
 
-    public ProxyRelayServerComponent(String host, Integer port, ProxyCoreComponent parent) {
+    public ProxyRelayServerComponent(ProxyServerNodeConfig cfg, ProxyCoreComponent parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
-        this.host = host;
-        this.port = port;
+        this.cfg = cfg;
 
         parent.registerProxyRequestSubscriber(this);
     }
@@ -71,17 +73,18 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
                 @Override
                 protected void initChannel(SocketChannel socketChannel) throws Exception {
                     ChannelPipeline pipeline = socketChannel.pipeline();
-                    pipeline.addLast(certComponent.getSslContext().newHandler(socketChannel.alloc(), host, port));
+                    pipeline.addLast(
+                            certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.host, cfg.port));
                     pipeline.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                             Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                     pipeline.addLast(new ProxyRelayMessageHandler());
                     pipeline.addLast(RelayMessageWriteEncoder.INSTANCE);
                 }
-            }).connect(host, port).await().addListener(f -> {
+            }).connect(cfg.host, cfg.port).await().addListener(f -> {
                 if (f.isSuccess()) {
-                    logger.info("Connect proxy relay server[{}:{}] successful!", host, port);
+                    logger.info("Connect proxy relay server[{}:{}] successful!", cfg.host, cfg.port);
                 } else {
-                    logger.info("Connect proxy relay server[{}:{}] failed!", host, port, f.cause());
+                    logger.info("Connect proxy relay server[{}:{}] failed!", cfg.host, cfg.port, f.cause());
                 }
             });
         } catch (Exception ex) {
@@ -113,6 +116,13 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            if (AuthenticationStrategy.SIMPLE.equals(cfg.auth)) {
+                AuthRequestMessage message = new AuthRequestMessage(cfg.userName, cfg.password);
+                ctx.writeAndFlush(message);
+            } else {
+                // nothing to do...
+            }
+
             ProxyRelayServerComponent.this.relayChannel = (SocketChannel) ctx.channel();
             ctx.fireChannelActive();
         }
@@ -125,6 +135,15 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
                 if (serviceId == PingMessage.SERVICE_ID) {
 
                 } else if (serviceId == PongMessage.SERVICE_ID) {
+
+                } else if (serviceId == AuthResponseMessage.SERVICE_ID) {
+                    AuthResponseMessage message = new AuthResponseMessage(byteBuf);
+                    if (!message.isPassed()) {
+                        logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.host, cfg.port,
+                                message.getMessage());
+                        ctx.close();
+                        ProxyRelayServerComponent.this.destroy();
+                    }
 
                 } else if (serviceId == ProxyResponseMessage.SERVICE_ID) {
                     ProxyResponseMessage message = new ProxyResponseMessage(byteBuf);
@@ -146,10 +165,11 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
     }
 
     public String getHost() {
-        return host;
+        return cfg.host;
     }
 
     public Integer getPort() {
-        return port;
+        return cfg.port;
     }
+
 }

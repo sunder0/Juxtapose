@@ -8,6 +8,8 @@ import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
+import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -112,15 +114,14 @@ public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponen
      */
     class SocksRequestHandler extends SimpleChannelInboundHandler<SocksRequest> {
         private boolean auth; // 是否需要鉴权
-        private String username;
-        private String password;
+        private AuthenticationStrategy authStrategy;
         private boolean authPass; // 鉴权通过
 
         public SocksRequestHandler() {
             this.auth = Socks5ProxyRequestPublisher.this.auth;
             this.authPass = !this.auth;
-            this.username = Socks5ProxyRequestPublisher.this.userName;
-            this.password = Socks5ProxyRequestPublisher.this.password;
+            this.authStrategy = new SimpleAuthenticationStrategy(Socks5ProxyRequestPublisher.this.userName,
+                    Socks5ProxyRequestPublisher.this.password);
         }
 
         @Override
@@ -212,7 +213,7 @@ public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponen
                 return;
             }
 
-            if (request.username().equals(username) && request.password().equals(password)) {
+            if (authStrategy.checkPermission(request.username(), request.password())) {
                 logger.info("Socks5 auth success.");
                 authPass = true;
                 ctx.pipeline().addFirst(new SocksCmdRequestDecoder());
