@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 public class ClientConfig extends BaseConfig {
     public final static String NAME = "CLIENT_CONFIG";
     private final static String SOCKS_GROUP = "Socks5";
+    private final static String HTTP_GROUP = "Http";
     private final static String ENCRYPT_GROUP = "Encrypt";
 
     private final String CLIENT_CONFIG_FILE = "conf/client.properties";
@@ -48,7 +49,7 @@ public class ClientConfig extends BaseConfig {
     }
 
     public String getSocks5Host() {
-        return config.getStr("socks.port", SOCKS_GROUP, "127.0.0.1");
+        return config.getStr("socks.host", SOCKS_GROUP, "127.0.0.1");
     }
 
     public int getSocks5Port() {
@@ -69,6 +70,14 @@ public class ClientConfig extends BaseConfig {
 
     public String getEncryptMethod() {
         return config.getStr("encrypt.method", ENCRYPT_GROUP, "pem");
+    }
+
+    public String getHttpHost() {
+        return config.getStr("http.host", HTTP_GROUP, "127.0.0.1");
+    }
+
+    public int getHttpPort() {
+        return config.getInt("http.port", HTTP_GROUP);
     }
 
 }

@@ -3,7 +3,7 @@ package com.sunder.juxtapose.client.publisher;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
-import com.sunder.juxtapose.client.TcpProxyMessageHandler;
+import com.sunder.juxtapose.client.handler.TcpProxyMessageHandler;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;

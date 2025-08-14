@@ -97,6 +97,8 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
     @Override
     public void subscribe(ProxyRequest request) {
         this.activeProxy.put(request.getSerialId(), request);
+
+        request.setProxyMessageReceiver(this);
     }
 
     @Override

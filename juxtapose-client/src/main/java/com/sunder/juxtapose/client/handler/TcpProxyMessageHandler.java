@@ -1,6 +1,6 @@
-package com.sunder.juxtapose.client;
+package com.sunder.juxtapose.client.handler;
 
-import com.sunder.juxtapose.client.publisher.Socks5ProxyRequestPublisher;
+import com.sunder.juxtapose.client.ProxyRequest;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
