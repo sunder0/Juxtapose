@@ -7,8 +7,6 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import com.sunder.juxtapose.common.handler.RelayMessageWriteEncoder;
-import com.sunder.juxtapose.common.mesage.AuthRequestMessage;
-import com.sunder.juxtapose.common.mesage.AuthResponseMessage;
 import com.sunder.juxtapose.common.mesage.Message;
 import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
@@ -134,13 +132,6 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
                     ctx.writeAndFlush(new PongMessage(), ctx.voidPromise());
                 } else if (serviceId == PongMessage.SERVICE_ID) {
                     new PongMessage(byteBuf);
-                } else if (serviceId == AuthRequestMessage.SERVICE_ID) {
-                    AuthRequestMessage message = new AuthRequestMessage(byteBuf);
-                    if (authStrategy.checkPermission(message.getUserName(), message.getPassword())) {
-                        ctx.writeAndFlush(new AuthResponseMessage(true));
-                    } else {
-                        ctx.writeAndFlush(new AuthResponseMessage(false, "401"));
-                    }
                 } else if (serviceId == ProxyRequestMessage.SERVICE_ID) {
                     ProxyRequestMessage message = new ProxyRequestMessage(byteBuf);
 

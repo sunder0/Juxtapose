@@ -21,7 +21,7 @@ public class SessionManager extends BaseModule<ProxyCoreComponent> {
     private final Logger logger;
     private final ScheduledThreadPoolExecutor executor;
     // 存放sessionId->session的映射
-    private Map<String, ClientSession> sessionMap = new ConcurrentHashMap<>(16);
+    private final Map<String, ClientSession> sessionMap = new ConcurrentHashMap<>(16);
 
     public SessionManager(ProxyCoreComponent belongComponent) {
         super(NAME, belongComponent);
@@ -30,6 +30,7 @@ public class SessionManager extends BaseModule<ProxyCoreComponent> {
                 ThreadFactoryBuilder.create().setNamePrefix("SessionManage-").build());
 
         this.executor.scheduleAtFixedRate(this::cleanupExpiredSessions, 5, 60, TimeUnit.SECONDS);
+        this.executor.scheduleAtFixedRate(this::showClientSessionStatics, 1, 10, TimeUnit.SECONDS);
     }
 
     public void addSession(ClientSession session) {
@@ -84,6 +85,15 @@ public class SessionManager extends BaseModule<ProxyCoreComponent> {
 
         if (cleaned > 0) {
             logger.info("Cleaned up {} expired sessions...", cleaned);
+        }
+    }
+
+    /**
+     * 打印session的一些统计数据
+     */
+    private void showClientSessionStatics() {
+        for (ClientSession session : sessionMap.values()) {
+            logger.info("Session[{}] current state:[{}].", session.getSessionId(), session.toString());
         }
     }
 

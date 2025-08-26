@@ -29,9 +29,11 @@ public class ClientSession implements Session {
     private String sessionId;
     private SocketChannel channel;
     private InetSocketAddress clientAddress;
+    private List<SessionStateListener> listeners = new CopyOnWriteArrayList<>();
 
     private long lastActivityTime;
-    private List<SessionStateListener> listeners = new CopyOnWriteArrayList<>();
+    private long writeMsgCnt;
+
 
     public ClientSession(String sessionId, SocketChannel channel) {
         this.logger = LoggerFactory.getLogger(ClientSession.class);
@@ -75,7 +77,7 @@ public class ClientSession implements Session {
         if (channel.isActive() && isWritableState()) {
             channel.writeAndFlush(message).addListener(future -> {
                 if (future.isSuccess()) {
-                    // sentMessages++;
+                    writeMsgCnt++;
                 } else {
                     logger.warn("Failed to send message to session {}", sessionId, future.cause());
                     // 发送失败，可能需要关闭连接
@@ -100,6 +102,7 @@ public class ClientSession implements Session {
 
     /**
      * 添加状态监听
+     *
      * @param listener
      */
     public void addSessionStateListener(SessionStateListener listener) {
@@ -108,6 +111,7 @@ public class ClientSession implements Session {
 
     /**
      * 移除状态监听
+     *
      * @param listener
      */
     public void removeSessionStateListener(SessionStateListener listener) {
@@ -121,10 +125,9 @@ public class ClientSession implements Session {
         if (state != SessionState.CLOSED) {
             changeState(SessionState.CLOSED);
             if (channel.isActive()) {
-                channel.close();
+                channel.attr(SESSION_KEY).set(null);
+                channel.close().addListener(f -> logger.info("Close session[{}] success.", sessionId));
             }
-            // 释放资源
-            // attributes.clear();
         }
     }
 
@@ -150,6 +153,7 @@ public class ClientSession implements Session {
 
     /**
      * 状态变化回调
+     *
      * @param oldState 旧状态
      * @param newState 新状态
      */
@@ -180,8 +184,9 @@ public class ClientSession implements Session {
     }
 
     private void notifyStateListeners(SessionState oldState, SessionState newState) {
-        if (listeners.isEmpty())
+        if (listeners.isEmpty()) {
             return;
+        }
 
         listeners.forEach(l -> l.onStateChanged(this, oldState, newState));
     }
@@ -202,5 +207,17 @@ public class ClientSession implements Session {
     @Override
     public int hashCode() {
         return Objects.hash(sessionId, channel);
+    }
+
+    @Override
+    public String toString() {
+        return "ClientSession{" +
+                "state=" + state +
+                ", lastStateChangeTime=" + lastStateChangeTime +
+                ", sessionId='" + sessionId + '\'' +
+                ", clientAddress=" + clientAddress +
+                ", lastActivityTime=" + lastActivityTime +
+                ", writeMsgCnt=" + writeMsgCnt +
+                '}';
     }
 }

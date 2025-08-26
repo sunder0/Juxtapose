@@ -91,7 +91,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
         private final ConcurrentActiveConMap activeConnects;
 
         public ProxyTask() {
-            this.taskQueue = new ArrayBlockingQueue<>(16);
+            this.taskQueue = new ArrayBlockingQueue<>(64);
             this.activeConnects = new ConcurrentActiveConMap();
             TcpProxyDispatchComponent.this.proxySubscribers.add(this);
         }
@@ -131,7 +131,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                                 });
 
                         ChannelFuture channelFuture = bootstrap.connect(message.getHost(), message.getPort())
-                                .addListener(new CompleteChannelFutureListen(message, conn, clientSession));
+                                .addListener(new CompleteChannelFutureListen(message, conn));
                         conn.setChannelFuture(channelFuture);
                         activeConnects.put(clientSession, conn);
                     } else {
@@ -146,9 +146,9 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                             if (cf.channel().isActive()) {
                                 ByteBuf content;
                                 while ((content = conn.getCache().poll()) != null) {
-                                    clientSession.writeAndFlush(content);
+                                    cf.channel().writeAndFlush(content);
                                 }
-                                clientSession.writeAndFlush(message.getContent());
+                                cf.channel().writeAndFlush(message.getContent());
                             }
                         } else if (!cf.isDone()) {
                             conn.getCache().offer(message.getContent());
@@ -181,13 +181,10 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
     private class CompleteChannelFutureListen implements ChannelFutureListener {
         private ProxyRequestMessage message;
         private ActiveProxyConnection conn;
-        private ClientSession clientSession;
 
-        public CompleteChannelFutureListen(ProxyRequestMessage message, ActiveProxyConnection conn,
-                ClientSession clientSession) {
+        public CompleteChannelFutureListen(ProxyRequestMessage message, ActiveProxyConnection conn) {
             this.message = message;
             this.conn = conn;
-            this.clientSession = clientSession;
         }
 
         @Override
@@ -198,7 +195,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                         message.getSerialId(), message.getHost(), message.getPort());
                 ByteBuf content = message.getContent();
                 do {
-                    clientSession.writeAndFlush(content);
+                    channelFuture.channel().writeAndFlush(content);
                 } while ((content = conn.getCache().poll()) != null);
             } else {
                 logger.info("[{}]Proxy server failed to connect to the target server:[{}:{}].",

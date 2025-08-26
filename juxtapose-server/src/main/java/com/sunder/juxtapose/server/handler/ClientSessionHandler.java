@@ -44,6 +44,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ByteBuf) {
             ByteBuf byteBuf = (ByteBuf) msg;
+
             byte serviceId = byteBuf.getByte(byteBuf.readerIndex());
             if (serviceId == AuthRequestMessage.SERVICE_ID) {
                 ClientSession session = sessionManager.getSession(ctx.channel().id().asShortText());

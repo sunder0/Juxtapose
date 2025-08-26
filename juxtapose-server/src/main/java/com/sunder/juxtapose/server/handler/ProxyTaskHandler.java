@@ -38,7 +38,7 @@ public class ProxyTaskHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof ByteBuf) {
             ByteBuf byteBuf = (ByteBuf) msg;
             ProxyResponseMessage message = new ProxyResponseMessage(request.getMessage().getSerialId(), byteBuf);
-            request.getClientChannel().writeAndFlush(message);
+            request.getClientSession().writeAndFlush(message);
         } else {
             ReferenceCountUtil.release(msg);
         }
