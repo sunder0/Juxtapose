@@ -223,7 +223,7 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
                     request.release();
                     proxyRequest.transferMessage(composite.retain());
                 } finally {
-                    channel.close();
+                    //channel.close();
                 }
             } else {
                 ctx.fireChannelRead(msg);

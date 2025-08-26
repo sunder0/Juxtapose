@@ -64,7 +64,7 @@ public class AuthRequestMessage extends Message {
     protected void deserialize0(ByteBuf message) {
         int methodLength = message.readShort();
         byte[] method = new byte[methodLength];
-        message.readBytes(message);
+        message.readBytes(method);
         this.method = new String(method, StandardCharsets.UTF_8);
 
         if (AuthenticationStrategy.SIMPLE.equals(this.method)) {

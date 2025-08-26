@@ -22,8 +22,19 @@ import javax.net.ssl.TrustManagerFactory;
  */
 public class SslEncryptProvider {
     private final static List<String> SUPPORT_PROTOCOLS = Arrays.asList("TLSv1.3", "TLSv1.2");
-    private final static List<String> SUPPORT_CIPHERS = Arrays.asList("TLS_AES_256_GCM_SHA384",
-            "TLS_CHACHA20_POLY1305_SHA256", "TLS_AES_128_GCM_SHA256");
+
+    private final static List<String> SUPPORT_CIPHERS = Arrays.asList(
+            // TLS 1.3 强套件
+            // "TLS_AES_256_GCM_SHA384",
+            // "TLS_CHACHA20_POLY1305_SHA256",
+            // "TLS_AES_128_GCM_SHA256",
+
+            // TLS 1.2 强套件
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+            // "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+            // "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+    );
     private final static Map<String, SslEncryptor> encryptors = new HashMap<>(16);
 
     static {
@@ -62,7 +73,7 @@ public class SslEncryptProvider {
                                 (InputStream) encrypt.get("server.crt"), // 服务端证书
                                 (InputStream) encrypt.get("server.key")  // 服务端私钥
                         )
-                        .sslProvider(SslProvider.OPENSSL)
+                        .sslProvider(SslProvider.JDK)
                         .clientAuth(clientAuth)
                         .protocols(SUPPORT_PROTOCOLS)
                         .ciphers(SUPPORT_CIPHERS);
@@ -74,7 +85,7 @@ public class SslEncryptProvider {
             } else {
                 SslContextBuilder builder = SslContextBuilder.forClient()
                         .trustManager((InputStream) encrypt.get("ca.crt")) // 信任的CA证书
-                        .sslProvider(SslProvider.OPENSSL)
+                        .sslProvider(SslProvider.JDK)
                         .protocols(SUPPORT_PROTOCOLS)
                         .ciphers(SUPPORT_CIPHERS);
                 // 非单向认证

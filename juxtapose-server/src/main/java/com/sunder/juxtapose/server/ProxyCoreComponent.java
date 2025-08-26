@@ -141,7 +141,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
                     }
                 } else if (serviceId == ProxyRequestMessage.SERVICE_ID) {
                     ProxyRequestMessage message = new ProxyRequestMessage(byteBuf);
-                    ProxyTaskRequest request = new ProxyTaskRequest(message, ProxyCoreComponent.this.socketChannel);
+                    ProxyTaskRequest request = new ProxyTaskRequest(message, (SocketChannel) ctx.channel());
 
                     dispatcher.publishProxyTask(request);
                 }

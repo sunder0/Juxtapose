@@ -15,7 +15,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -28,7 +30,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyCoreComponent
     public final static String NAME = "DIRECT_FORWARDING_SUBSCRIBER";
 
     private final Bootstrap bootstrap;
-    private SocketChannel relayChannel;
+    private Map<Long, SocketChannel> relayChannel = new ConcurrentHashMap<>();
 
     public DirectForwardingSubscriber(ProxyCoreComponent parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
@@ -52,13 +54,14 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyCoreComponent
                         logger.info("Direct connect address[{}:{}] failed!", request.getHost(), request.getPort(), f.cause());
                     }
                 });
-
-        request.setProxyMessageReceiver(this);
     }
 
     @Override
     public void receive(Long serialId, ByteBuf message) {
-        this.relayChannel.writeAndFlush(message);
+        SocketChannel channel;
+        if ((channel = relayChannel.get(serialId)) != null) {
+            channel.writeAndFlush(message);
+        }
     }
 
     /**
@@ -73,7 +76,9 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyCoreComponent
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            DirectForwardingSubscriber.this.relayChannel = (SocketChannel) ctx.channel();
+            relayChannel.putIfAbsent(request.getSerialId(), (SocketChannel) ctx.channel());
+            request.setProxyMessageReceiver(DirectForwardingSubscriber.this);
+
             ctx.fireChannelActive();
         }
 
@@ -90,6 +95,11 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyCoreComponent
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
         }
+    }
+
+    @Override
+    public boolean isProxy() {
+        return false;
     }
 
 }

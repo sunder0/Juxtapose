@@ -1,9 +1,10 @@
 package com.sunder.juxtapose.client.conf;
 
-import cn.hutool.core.io.resource.ClassPathResource;
 import cn.hutool.setting.Setting;
 import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigManager;
+import com.sunder.juxtapose.common.MultiProtocolResource;
+import com.sunder.juxtapose.common.ProxyMode;
 
 import java.nio.charset.StandardCharsets;
 
@@ -27,9 +28,9 @@ public class ClientConfig extends BaseConfig {
 
     @Override
     protected void initInternal() {
-        ClassPathResource resource = new ClassPathResource(CLIENT_CONFIG_FILE);
+        MultiProtocolResource resource = new MultiProtocolResource(CLIENT_CONFIG_FILE, true);
         config = new Setting();
-        config.init(resource, StandardCharsets.UTF_8, true);
+        config.init(resource.getResource(), StandardCharsets.UTF_8, true);
         config.autoLoad(autoReload());
     }
 
@@ -48,16 +49,28 @@ public class ClientConfig extends BaseConfig {
         config.store(config.getSettingPath());
     }
 
+    public String getLogConfig() {
+        return config.getStr("logging.config", "${JUXTAPOSE_HOME}/conf/logback_server.xml");
+    }
+
+    public String getLogLevel() {
+        return config.getStr("logging.level", "info");
+    }
+
+    public ProxyMode getProxyMode() {
+        return ProxyMode.valueOf(config.getStr("proxy.mode", "RULE"));
+    }
+
     public String getSocks5Host() {
         return config.getStr("socks.host", SOCKS_GROUP, "127.0.0.1");
     }
 
     public int getSocks5Port() {
-        return config.getInt("socks.port", SOCKS_GROUP);
+        return config.getInt("socks.port", SOCKS_GROUP, 1200);
     }
 
     public boolean getSocks5Auth() {
-        return config.getBool("socks.auth", SOCKS_GROUP);
+        return config.getBool("socks.auth", SOCKS_GROUP, false);
     }
 
     public String getSocks5User() {
@@ -77,7 +90,7 @@ public class ClientConfig extends BaseConfig {
     }
 
     public int getHttpPort() {
-        return config.getInt("http.port", HTTP_GROUP);
+        return config.getInt("http.port", HTTP_GROUP, 1201);
     }
 
 }

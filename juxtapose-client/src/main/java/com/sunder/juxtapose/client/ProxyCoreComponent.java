@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.client;
 
+import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.publisher.HttpProxyRequestPublisher;
@@ -9,9 +10,13 @@ import com.sunder.juxtapose.client.subscriber.ProxyRelayServerComponent;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.ConfigManager;
+import com.sunder.juxtapose.common.ProxyMode;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * @author : denglinhai
@@ -23,7 +28,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
     // 代理节点的配置信息
     private ProxyServerConfig proxyServerCfg;
     // 代理请求的订阅者, NAME -> ProxyRequestSubscriber
-    private final Map<String, ProxyRequestSubscriber> subscribers = new ConcurrentHashMap<>();
+    private final Map<String, ProxyRequestSubscriber> proxySubscribers = new ConcurrentHashMap<>();
 
     public ProxyCoreComponent(ClientBootstrap parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
@@ -38,7 +43,6 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
         addChildComponent(new Socks5ProxyRequestPublisher(this));
         // 添加http本地代理
         addChildComponent(new HttpProxyRequestPublisher(this));
-
         // 添加直连订阅
         addChildComponent(new DirectForwardingSubscriber(this));
 
@@ -72,10 +76,23 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
      */
     @Override
     public void publishProxyRequest(ProxyRequest request) {
-        ProxyRequestSubscriber subscriber = subscribers.get(0);
+        ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
+        ProxyMode proxyMode = cfg.getProxyMode();
 
-        // transfers.put(request, req);
-        subscriber.subscribe(request);
+        List<ProxyRequestSubscriber> subscribers;
+        if (proxyMode == ProxyMode.GLOBAL) {
+            subscribers = proxySubscribers.values().stream().filter(ProxyRequestSubscriber::isProxy)
+                    .collect(Collectors.toList());
+        } else if (proxyMode == ProxyMode.DIRECT) {
+            subscribers = proxySubscribers.values().stream().filter(e -> !e.isProxy()).collect(Collectors.toList());
+        } else if (proxyMode == ProxyMode.RULE) {
+            subscribers = proxySubscribers.values().stream().filter(e -> !e.isProxy()).collect(Collectors.toList());
+        } else {
+            subscribers = new ArrayList<>();
+        }
+
+        int index = request.hashCode() % subscribers.size();
+        subscribers.get(index).subscribe(request);
     }
 
     /**
@@ -84,7 +101,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
      * @param subscriber
      */
     public void registerProxyRequestSubscriber(ProxyRequestSubscriber subscriber) {
-        subscribers.put(subscriber.getName(), subscriber);
+        proxySubscribers.put(subscriber.getName(), subscriber);
     }
 
     /**
@@ -93,7 +110,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
      * @param subscriber
      */
     public void removeProxyRequestSubscriber(ProxyRequestSubscriber subscriber) {
-        subscribers.remove(subscriber.getName());
+        proxySubscribers.remove(subscriber.getName());
     }
 
 }

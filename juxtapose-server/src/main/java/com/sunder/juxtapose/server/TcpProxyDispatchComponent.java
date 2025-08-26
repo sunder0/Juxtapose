@@ -7,6 +7,7 @@ import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -110,36 +111,28 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                     boolean connected = activeConnects.contains(request.getClientChannel(), message.getSerialId());
 
                     if (!connected) {
+                        logger.info("start proxy connection[{}]", request.getMessage().getHost());
                         Bootstrap bootstrap = new Bootstrap();
+
                         bootstrap.group(new NioEventLoopGroup(2))
                                 .channel(NioSocketChannel.class)
                                 .option(ChannelOption.SO_KEEPALIVE, true)
                                 .option(ChannelOption.AUTO_CLOSE, true)
-                                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 100000);
-
-                        ChannelFuture channelFuture = bootstrap.handler(new ChannelInitializer<SocketChannel>() {
-                            @Override
-                            protected void initChannel(SocketChannel socketChannel) {
-                                ChannelPipeline pipeline = socketChannel.pipeline();
-                                pipeline.addLast(new ProxyTaskHandler(request));
-                            }
-
-                        }).connect(message.getHost(), message.getPort()).addListener(
-                                f -> {
-                                    if (f.isSuccess()) {
-                                        logger.info(
-                                                "[{}]Proxy server successfully connects to the target server:[{}:{}].",
-                                                message.getSerialId(), message.getHost(), message.getPort());
-                                    } else {
-                                        logger.info("[{}]Proxy server failed to connect to the target server:[{}:{}].",
-                                                message.getSerialId(), message.getHost(), message.getPort(), f.cause());
+                                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
+                                .handler(new ChannelInitializer<SocketChannel>() {
+                                    @Override
+                                    protected void initChannel(SocketChannel socketChannel) {
+                                        ChannelPipeline pipeline = socketChannel.pipeline();
+                                        pipeline.addLast(new ProxyTaskHandler(request));
                                     }
                                 });
 
+                        ChannelFuture channelFuture = bootstrap.connect(message.getHost(), message.getPort())
+                                .addListener(new CompleteChannelFutureListen(message, con));
                         con.setChannelFuture(channelFuture);
                         activeConnects.put(request.getClientChannel(), con);
                     } else {
-                        logger.info("Reuse proxy connection[{}]", request.getMessage().getHost());
+                        logger.info("reuse proxy connection[{}]", request.getMessage().getHost());
                         con = activeConnects.get(request.getClientChannel(), message.getSerialId());
                         ChannelFuture cf = con.getChannelFuture();
                         if (cf.isDone() && cf.isSuccess()) {
@@ -171,6 +164,37 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
             taskQueue.offer(request);
         }
 
+    }
+
+    /**
+     * 对connect的监听，主要做两件事：
+     * 1。是将第一条消息在connect成功后立马发出去
+     * 2。是看是否在connect期间有累计的消息，有的话也发送出去
+     */
+    private class CompleteChannelFutureListen implements ChannelFutureListener {
+        private ProxyRequestMessage message;
+        private ActiveProxyConnection conn;
+
+        public CompleteChannelFutureListen(ProxyRequestMessage message, ActiveProxyConnection conn) {
+            this.message = message;
+            this.conn = conn;
+        }
+
+        @Override
+        public void operationComplete(ChannelFuture channelFuture) throws Exception {
+            if (channelFuture.isSuccess()) {
+                logger.info(
+                        "[{}]Proxy server successfully connects to the target server:[{}:{}].",
+                        message.getSerialId(), message.getHost(), message.getPort());
+                ByteBuf content = message.getContent();
+                do {
+                    channelFuture.channel().writeAndFlush(content);
+                } while ((content = conn.getCache().poll()) != null);
+            } else {
+                logger.info("[{}]Proxy server failed to connect to the target server:[{}:{}].",
+                        message.getSerialId(), message.getHost(), message.getPort(), channelFuture.cause());
+            }
+        }
     }
 
 }

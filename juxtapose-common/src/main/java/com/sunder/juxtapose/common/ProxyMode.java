@@ -2,9 +2,9 @@ package com.sunder.juxtapose.common;
 
 /**
  * @author : denglinhai
- * @date : 15:49 2025/08/12
- *         代理模式
+ * @date : 23:32 2025/08/17
  */
 public enum ProxyMode {
-    SOCKS5, HTTP
+    GLOBAL, RULE, DIRECT, SCRIPT;
+
 }

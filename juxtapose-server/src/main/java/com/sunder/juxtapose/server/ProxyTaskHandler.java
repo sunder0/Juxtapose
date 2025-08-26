@@ -4,13 +4,14 @@ import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * @author : denglinhai
  * @date : 12:02 2023/7/14
- * 连上目标服务器的代理任务的数据处理handler
+ *         连上目标服务器的代理任务的数据处理handler
  */
 public class ProxyTaskHandler extends ChannelInboundHandlerAdapter {
     private final Logger logger;
@@ -23,9 +24,6 @@ public class ProxyTaskHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        // 第一次连接发送数据
-        ByteBuf content = request.getMessage().getContent();
-        ctx.writeAndFlush(content);
         ctx.fireChannelActive();
     }
 
@@ -41,7 +39,7 @@ public class ProxyTaskHandler extends ChannelInboundHandlerAdapter {
             ProxyResponseMessage message = new ProxyResponseMessage(request.getMessage().getSerialId(), byteBuf);
             request.getClientChannel().writeAndFlush(message);
         } else {
-            ctx.fireChannelRead(msg);
+            ReferenceCountUtil.release(msg);
         }
     }
 

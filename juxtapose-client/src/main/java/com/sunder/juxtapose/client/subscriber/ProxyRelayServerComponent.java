@@ -8,6 +8,7 @@ import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.handler.RelayMessageWriteEncoder;
 import com.sunder.juxtapose.common.mesage.AuthRequestMessage;
@@ -47,7 +48,8 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
     private final Map<Long, ProxyRequest> activeProxy = new ConcurrentHashMap<>(16); // 活跃的代理
 
     public ProxyRelayServerComponent(ProxyServerNodeConfig cfg, ProxyCoreComponent parent) {
-        super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
+        super(NAME + "_" + cfg.host + ":" + cfg.port, Objects.requireNonNull(parent),
+                ComponentLifecycleListener.INSTANCE);
         this.cfg = cfg;
 
         parent.registerProxyRequestSubscriber(this);
@@ -120,7 +122,7 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             if (AuthenticationStrategy.SIMPLE.equals(cfg.auth)) {
                 AuthRequestMessage message = new AuthRequestMessage(cfg.userName, cfg.password);
-                ctx.writeAndFlush(message);
+                ctx.channel().writeAndFlush(message);
             } else {
                 // nothing to do...
             }
@@ -149,6 +151,7 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
 
                 } else if (serviceId == ProxyResponseMessage.SERVICE_ID) {
                     ProxyResponseMessage message = new ProxyResponseMessage(byteBuf);
+                    logger.info("receive proxy server message...[{}]", message.getSerialId());
                     if (message.isSuccess()) {
                         activeProxy.get(message.getSerialId()).returnMessage(message.getContent());
                     } else {
@@ -174,4 +177,13 @@ public class ProxyRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
         return cfg.port;
     }
 
+    @Override
+    public boolean isProxy() {
+        return true;
+    }
+
+    @Override
+    public ProxyProtocol proxyMode() {
+        return ProxyProtocol.USER_DEFINE;
+    }
 }

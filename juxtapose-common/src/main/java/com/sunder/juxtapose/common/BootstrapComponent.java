@@ -6,11 +6,17 @@ package com.sunder.juxtapose.common;
  *         启动类组件
  */
 public class BootstrapComponent extends BaseCompositeComponent<VoidComponent> implements Platform {
-    private final DefaultConfigManager<BootstrapComponent> configManager = new DefaultConfigManager<>(this);
+    protected final DefaultConfigManager<BootstrapComponent> configManager = new DefaultConfigManager<>(this);
 
     public BootstrapComponent(String name) {
         super(name, new VoidComponent(), ComponentLifecycleListener.INSTANCE);
         addModule(configManager);
+    }
+
+    @Override
+    public void start() throws LifecycleException {
+        super.init();
+        super.start();
     }
 
 }

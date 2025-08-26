@@ -6,6 +6,12 @@ package com.sunder.juxtapose.common.auth;
  *         认证策略
  */
 public interface AuthenticationStrategy {
+
+    /**
+     * 不需要验证
+     */
+    String NONE = "none";
+
     /**
      * 简单验证
      */

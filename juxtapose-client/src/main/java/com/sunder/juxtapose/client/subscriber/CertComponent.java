@@ -45,7 +45,7 @@ public class CertComponent extends BaseComponent<ProxyRelayServerComponent> {
         URL cacrt = getClass().getClassLoader().getResource(CA_CRT);
         if (cacrt == null) {
             try (HttpResponse response = HttpUtil.createGet(
-                    String.format("http://{%s}:%s/ca.crt", parent.getHost(), parent.getPort())).execute()) {
+                    String.format("http://%s:%s/ca.crt", parent.getHost(), 2202)).execute()) {
                 URL classpathRoot = getClass().getClassLoader().getResource("");
                 Path path = Paths.get(classpathRoot.toURI()).resolve(CA_CRT);
                 FileUtil.writeString(response.body(), path.toFile(), StandardCharsets.UTF_8);

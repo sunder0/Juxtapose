@@ -1,6 +1,7 @@
 package com.sunder.juxtapose.client;
 
 import com.sunder.juxtapose.common.Named;
+import com.sunder.juxtapose.common.ProxyProtocol;
 
 /**
  * @author : denglinhai
@@ -17,6 +18,22 @@ public interface ProxyRequestSubscriber extends Named {
      * http代理
      */
     String HTTP_PROXY = "Http";
+
+    /**
+     * 是否支持代理
+     * @return bool
+     */
+    default boolean isProxy() {
+        return false;
+    }
+
+    /**
+     * 代理模式
+     * @return ProxyMode
+     */
+    default ProxyProtocol proxyMode() {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * 订阅一个请求代理

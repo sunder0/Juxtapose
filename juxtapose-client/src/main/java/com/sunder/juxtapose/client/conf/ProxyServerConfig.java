@@ -2,12 +2,12 @@ package com.sunder.juxtapose.client.conf;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.io.resource.ClassPathResource;
 import cn.hutool.core.util.CharUtil;
 import cn.hutool.core.util.StrUtil;
 import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigManager;
-import com.sunder.juxtapose.common.ProxyMode;
+import com.sunder.juxtapose.common.MultiProtocolResource;
+import com.sunder.juxtapose.common.ProxyProtocol;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -32,8 +32,8 @@ public class ProxyServerConfig extends BaseConfig {
 
     @Override
     protected void initInternal() {
-        ClassPathResource resource = new ClassPathResource(PROXY_SERVER_CONFIG_FILE);
-        List<String> readLines = FileUtil.readLines(resource.getUrl(), StandardCharsets.UTF_8);
+        MultiProtocolResource resource = new MultiProtocolResource(PROXY_SERVER_CONFIG_FILE, true);
+        List<String> readLines = FileUtil.readLines(resource.getResource().getUrl(), StandardCharsets.UTF_8);
 
         Map<String, Object> nodeConfig = new HashMap<>();
         for (String line : readLines) {
@@ -49,7 +49,7 @@ public class ProxyServerConfig extends BaseConfig {
 
             // 记录代理模式
             if (StrUtil.isSurround(line, CharUtil.BRACKET_START, CharUtil.BRACKET_END)) {
-                nodeConfig.put("proxyMode", line.substring(1, line.length() - 1).trim());
+                nodeConfig.put("protocol", line.substring(1, line.length() - 1).trim());
                 continue;
             }
 
@@ -94,7 +94,7 @@ public class ProxyServerConfig extends BaseConfig {
         public String userName;
         public String password;
 
-        public ProxyMode proxyMode;
+        public ProxyProtocol protocol;
         public String host;
         public Integer port;
 
@@ -104,13 +104,13 @@ public class ProxyServerConfig extends BaseConfig {
                 return false;
             }
             ProxyServerNodeConfig that = (ProxyServerNodeConfig) object;
-            return Objects.equals(proxyMode, that.proxyMode) && Objects.equals(host, that.host)
+            return Objects.equals(protocol, that.protocol) && Objects.equals(host, that.host)
                     && Objects.equals(port, that.port);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(proxyMode, host, port);
+            return Objects.hash(protocol, host, port);
         }
 
         @Override
@@ -119,7 +119,7 @@ public class ProxyServerConfig extends BaseConfig {
                     "auth='" + auth + '\'' +
                     ", userName='" + userName + '\'' +
                     ", password='" + password + '\'' +
-                    ", proxyMode='" + proxyMode + '\'' +
+                    ", protocol=" + protocol +
                     ", host='" + host + '\'' +
                     ", port=" + port +
                     '}';
