@@ -4,6 +4,8 @@ import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
+import com.sunder.juxtapose.server.handler.ProxyTaskHandler;
+import com.sunder.juxtapose.server.session.ClientSession;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
@@ -99,16 +101,17 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
             try {
                 Thread thread = Thread.currentThread();
                 while (!thread.isInterrupted()) {
-                    final ProxyTaskRequest request = ProxyTask.this.taskQueue.poll(2, TimeUnit.SECONDS);
+                    final ProxyTaskRequest request = ProxyTask.this.taskQueue.poll(20, TimeUnit.MILLISECONDS);
                     if (request == null) {
                         continue;
                     }
                     final ProxyRequestMessage message = request.getMessage();
+                    final ClientSession clientSession = request.getClientSession();
 
-                    ActiveProxyConnection con = new ActiveProxyConnection(
+                    ActiveProxyConnection conn = new ActiveProxyConnection(
                             message.getHost(), message.getPort(), message.getSerialId());
 
-                    boolean connected = activeConnects.contains(request.getClientChannel(), message.getSerialId());
+                    boolean connected = activeConnects.contains(clientSession, message.getSerialId());
 
                     if (!connected) {
                         logger.info("start proxy connection[{}]", request.getMessage().getHost());
@@ -128,26 +131,30 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                                 });
 
                         ChannelFuture channelFuture = bootstrap.connect(message.getHost(), message.getPort())
-                                .addListener(new CompleteChannelFutureListen(message, con));
-                        con.setChannelFuture(channelFuture);
-                        activeConnects.put(request.getClientChannel(), con);
+                                .addListener(new CompleteChannelFutureListen(message, conn, clientSession));
+                        conn.setChannelFuture(channelFuture);
+                        activeConnects.put(clientSession, conn);
                     } else {
                         logger.info("reuse proxy connection[{}]", request.getMessage().getHost());
-                        con = activeConnects.get(request.getClientChannel(), message.getSerialId());
-                        ChannelFuture cf = con.getChannelFuture();
+                        conn = activeConnects.get(clientSession, message.getSerialId());
+                        if (conn == null) {
+                            continue;
+                        }
+
+                        ChannelFuture cf = conn.getChannelFuture();
                         if (cf.isDone() && cf.isSuccess()) {
                             if (cf.channel().isActive()) {
                                 ByteBuf content;
-                                while ((content = con.getCache().poll()) != null) {
-                                    cf.channel().writeAndFlush(content);
+                                while ((content = conn.getCache().poll()) != null) {
+                                    clientSession.writeAndFlush(content);
                                 }
-                                cf.channel().writeAndFlush(message.getContent());
+                                clientSession.writeAndFlush(message.getContent());
                             }
                         } else if (!cf.isDone()) {
-                            con.getCache().offer(message.getContent());
+                            conn.getCache().offer(message.getContent());
                         } else {
                             // 连接失败
-                            activeConnects.remove(request.getClientChannel(), con.getSerialId());
+                            activeConnects.remove(clientSession, conn.getSerialId());
                         }
                     }
 
@@ -161,7 +168,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
 
         @Override
         public void subscribe(ProxyTaskRequest request) {
-            taskQueue.offer(request);
+            boolean result = taskQueue.offer(request);
         }
 
     }
@@ -174,10 +181,13 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
     private class CompleteChannelFutureListen implements ChannelFutureListener {
         private ProxyRequestMessage message;
         private ActiveProxyConnection conn;
+        private ClientSession clientSession;
 
-        public CompleteChannelFutureListen(ProxyRequestMessage message, ActiveProxyConnection conn) {
+        public CompleteChannelFutureListen(ProxyRequestMessage message, ActiveProxyConnection conn,
+                ClientSession clientSession) {
             this.message = message;
             this.conn = conn;
+            this.clientSession = clientSession;
         }
 
         @Override
@@ -188,7 +198,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                         message.getSerialId(), message.getHost(), message.getPort());
                 ByteBuf content = message.getContent();
                 do {
-                    channelFuture.channel().writeAndFlush(content);
+                    clientSession.writeAndFlush(content);
                 } while ((content = conn.getCache().poll()) != null);
             } else {
                 logger.info("[{}]Proxy server failed to connect to the target server:[{}:{}].",

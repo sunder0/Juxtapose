@@ -1,6 +1,7 @@
-package com.sunder.juxtapose.server;
+package com.sunder.juxtapose.server.handler;
 
 import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
+import com.sunder.juxtapose.server.ProxyTaskRequest;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;

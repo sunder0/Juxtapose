@@ -14,6 +14,9 @@ import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.server.conf.ServerConfig;
+import com.sunder.juxtapose.server.handler.ClientSessionHandler;
+import com.sunder.juxtapose.server.session.ClientSession;
+import com.sunder.juxtapose.server.session.SessionManager;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -42,7 +45,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
     private CertComponent certComponent;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workGroup;
-    private SocketChannel socketChannel;
+    private SessionManager sessionManager;
     private TcpProxyDispatchComponent dispatcher;
 
     public ProxyCoreComponent(com.sunder.juxtapose.server.ServerBootstrap parent) {
@@ -58,11 +61,10 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
         bossGroup = new NioEventLoopGroup(1);
         workGroup = new NioEventLoopGroup(4);
 
-        certComponent = new CertComponent(this);
-        addChildComponent(certComponent);
+        addChildComponent(certComponent = new CertComponent(this));
+        addChildComponent(dispatcher = new TcpProxyDispatchComponent(this));
 
-        dispatcher = new TcpProxyDispatchComponent(this);
-        addChildComponent(dispatcher);
+        addModule(sessionManager = new SessionManager(this));
 
         super.initInternal();
     }
@@ -81,6 +83,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
                             cp.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                                     Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                             cp.addLast(RelayMessageWriteEncoder.INSTANCE);
+                            cp.addLast(new ClientSessionHandler(sessionManager, authStrategy));
                             cp.addLast(new ProxyRelayMessageHandler());
                         }
                     });
@@ -113,7 +116,6 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            ProxyCoreComponent.this.socketChannel = (SocketChannel) ctx.channel();
             super.channelActive(ctx);
         }
 
@@ -141,8 +143,12 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
                     }
                 } else if (serviceId == ProxyRequestMessage.SERVICE_ID) {
                     ProxyRequestMessage message = new ProxyRequestMessage(byteBuf);
-                    ProxyTaskRequest request = new ProxyTaskRequest(message, (SocketChannel) ctx.channel());
 
+                    SessionManager sessionManager = ProxyCoreComponent.this.sessionManager;
+                    ClientSession clientSession = sessionManager.getSession(ctx.channel().id().asShortText());
+                    clientSession.updateActivityTime();
+
+                    ProxyTaskRequest request = new ProxyTaskRequest(message, clientSession);
                     dispatcher.publishProxyTask(request);
                 }
             } else {

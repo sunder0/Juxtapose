@@ -2,7 +2,7 @@ package com.sunder.juxtapose.server;
 
 
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
-import io.netty.channel.socket.SocketChannel;
+import com.sunder.juxtapose.server.session.ClientSession;
 
 import java.util.Objects;
 
@@ -15,11 +15,11 @@ public class ProxyTaskRequest {
     // 从客户端传过来的代理请求信息
     private ProxyRequestMessage message;
     // 和客户端连接的channel
-    private SocketChannel clientChannel;
+    private ClientSession clientSession;
 
-    public ProxyTaskRequest(ProxyRequestMessage message, SocketChannel clientChannel) {
+    public ProxyTaskRequest(ProxyRequestMessage message, ClientSession clientSession) {
         this.message = Objects.requireNonNull(message);
-        this.clientChannel = clientChannel;
+        this.clientSession = clientSession;
     }
 
     public ProxyRequestMessage getMessage() {
@@ -30,12 +30,12 @@ public class ProxyTaskRequest {
         this.message = message;
     }
 
-    public SocketChannel getClientChannel() {
-        return clientChannel;
+    public ClientSession getClientSession() {
+        return clientSession;
     }
 
-    public void setClientChannel(SocketChannel clientChannel) {
-        this.clientChannel = clientChannel;
+    public void setClientSession(ClientSession clientSession) {
+        this.clientSession = clientSession;
     }
 
     @Override
