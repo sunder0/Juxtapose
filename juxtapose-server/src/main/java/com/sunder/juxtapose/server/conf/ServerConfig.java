@@ -4,6 +4,7 @@ import cn.hutool.setting.Setting;
 import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.MultiProtocolResource;
+import com.sunder.juxtapose.common.ProxyProtocol;
 
 import java.nio.charset.StandardCharsets;
 
@@ -13,7 +14,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class ServerConfig extends BaseConfig {
     public final static String NAME = "SERVER_CONFIG";
-    private final static String RELAY_SERVER_GROUP = "RelayServer";
+    private final static String PROXY_SERVER_GROUP = "ProxyServer";
     private final static String ENCRYPT_GROUP = "Encrypt";
 
     private final String SERVER_CONFIG_FILE = "conf/server.properties";
@@ -54,12 +55,28 @@ public class ServerConfig extends BaseConfig {
         return config.getStr("logging.level", "info");
     }
 
-    public String getRelayServerHost() {
-        return config.getStr("relay.server.host", RELAY_SERVER_GROUP, "0.0.0.0");
+    public ProxyProtocol getProxyProto() {
+        return ProxyProtocol.valueOf(config.getStr("proxy.proto", PROXY_SERVER_GROUP, "JUXTA"));
     }
 
-    public int getRelayServerPort() {
-        return config.getInt("relay.server.port", RELAY_SERVER_GROUP, 2201);
+    public String getProxyHost() {
+        return config.getStr("proxy.host", PROXY_SERVER_GROUP, "0.0.0.0");
+    }
+
+    public int getProxyPort() {
+        return config.getInt("proxy.port", PROXY_SERVER_GROUP, 2201);
+    }
+
+    public boolean getProxyAuth() {
+        return config.getBool("proxy.auth", PROXY_SERVER_GROUP, false);
+    }
+
+    public String getProxyUserName() {
+        return config.getStr("proxy.username", PROXY_SERVER_GROUP, null);
+    }
+
+    public String getProxyPassword() {
+        return config.getStr("proxy.password", PROXY_SERVER_GROUP, null);
     }
 
     public String getEncryptMethod() {

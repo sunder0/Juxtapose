@@ -69,7 +69,7 @@ public class SessionManager extends BaseModule<ProxyCoreComponent> {
         for (ClientSession session : sessionMap.values()) {
             // 清理长时间处于DISCONNECTED状态的Session
             if (session.getState() == SessionState.DISCONNECTED &&
-                    (now - session.getLastActivityTime()) > TimeUnit.HOURS.toMillis(12)) {
+                    (now - session.getLastActivityTime()) > TimeUnit.HOURS.toMillis(1)) {
                 session.close();
                 cleaned++;
             }

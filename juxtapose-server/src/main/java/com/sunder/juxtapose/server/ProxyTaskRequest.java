@@ -1,6 +1,7 @@
 package com.sunder.juxtapose.server;
 
 
+import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.server.session.ClientSession;
 
@@ -12,12 +13,14 @@ import java.util.Objects;
  *         代理任务请求，代表一个从客户端传过来的代理请求
  */
 public class ProxyTaskRequest {
+    private ProxyProtocol protocol;
     // 从客户端传过来的代理请求信息
     private ProxyRequestMessage message;
     // 和客户端连接的channel
     private ClientSession clientSession;
 
-    public ProxyTaskRequest(ProxyRequestMessage message, ClientSession clientSession) {
+    public ProxyTaskRequest(ProxyProtocol protocol, ProxyRequestMessage message, ClientSession clientSession) {
+        this.protocol = protocol;
         this.message = Objects.requireNonNull(message);
         this.clientSession = clientSession;
     }
@@ -36,6 +39,14 @@ public class ProxyTaskRequest {
 
     public void setClientSession(ClientSession clientSession) {
         this.clientSession = clientSession;
+    }
+
+    public ProxyProtocol getProtocol() {
+        return protocol;
+    }
+
+    public void setProtocol(ProxyProtocol protocol) {
+        this.protocol = protocol;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.server.handler;
 
+import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
 import com.sunder.juxtapose.server.ProxyTaskRequest;
 import io.netty.buffer.ByteBuf;
@@ -37,8 +38,12 @@ public class ProxyTaskHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ByteBuf) {
             ByteBuf byteBuf = (ByteBuf) msg;
-            ProxyResponseMessage message = new ProxyResponseMessage(request.getMessage().getSerialId(), byteBuf);
-            request.getClientSession().writeAndFlush(message);
+            if (request.getProtocol() == ProxyProtocol.SOCKS5) {
+                request.getClientSession().writeAndFlush(byteBuf);
+            } else if (request.getProtocol() == ProxyProtocol.JUXTA) {
+                ProxyResponseMessage message = new ProxyResponseMessage(request.getMessage().getSerialId(), byteBuf);
+                request.getClientSession().writeAndFlush(message);
+            }
         } else {
             ReferenceCountUtil.release(msg);
         }

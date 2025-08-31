@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
  */
 public class TcpProxyMessageHandler extends ChannelInboundHandlerAdapter {
     private final Logger logger = LoggerFactory.getLogger(TcpProxyMessageHandler.class);
-    private ProxyRequest proxyRequest;
+    private final ProxyRequest proxyRequest;
 
     public TcpProxyMessageHandler(ProxyRequest request) {
         this.proxyRequest = request;

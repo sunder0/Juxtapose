@@ -2,30 +2,14 @@ package com.sunder.juxtapose.server;
 
 
 import com.sunder.juxtapose.common.BaseCompositeComponent;
-import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
-import com.sunder.juxtapose.common.handler.RelayMessageWriteEncoder;
-import com.sunder.juxtapose.common.mesage.Message;
-import com.sunder.juxtapose.common.mesage.PingMessage;
-import com.sunder.juxtapose.common.mesage.PongMessage;
-import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.server.conf.ServerConfig;
-import com.sunder.juxtapose.server.handler.ClientSessionHandler;
-import com.sunder.juxtapose.server.session.ClientSession;
+import com.sunder.juxtapose.server.proxy.JuxtaProxyTaskPublisher;
+import com.sunder.juxtapose.server.proxy.Socks5ProxyTaskPublisher;
 import com.sunder.juxtapose.server.session.SessionManager;
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
 
 /**
@@ -38,11 +22,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
     // 认证策略，后续改成从DB获取
     private AuthenticationStrategy authStrategy = new SimpleAuthenticationStrategy("root", "root");
 
-    private String host;
-    private int port;
     private CertComponent certComponent;
-    private EventLoopGroup bossGroup;
-    private EventLoopGroup workGroup;
     private SessionManager sessionManager;
     private TcpProxyDispatchComponent dispatcher;
 
@@ -52,104 +32,39 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
 
     @Override
     protected void initInternal() {
-        ServerConfig cfg = getConfigManager().getConfigByName(ServerConfig.NAME, ServerConfig.class);
-        this.host = cfg.getRelayServerHost();
-        this.port = cfg.getRelayServerPort();
+        addModule(sessionManager = new SessionManager(this));
 
-        bossGroup = new NioEventLoopGroup(1);
-        workGroup = new NioEventLoopGroup(4);
+        ServerConfig cfg = getConfigManager().getConfigByName(ServerConfig.NAME, ServerConfig.class);
+        ProxyProtocol protocol = cfg.getProxyProto();
+        if (protocol == ProxyProtocol.JUXTA) {
+            addChildComponent(new JuxtaProxyTaskPublisher(this));
+        } else if (protocol == ProxyProtocol.SOCKS5) {
+            addChildComponent(new Socks5ProxyTaskPublisher(this));
+        } else if (protocol == ProxyProtocol.HTTP) {
+            //todo
+        } else if (protocol == ProxyProtocol.VMESS) {
+            //todo
+        }
 
         addChildComponent(certComponent = new CertComponent(this));
         addChildComponent(dispatcher = new TcpProxyDispatchComponent(this));
-
-        addModule(sessionManager = new SessionManager(this));
 
         super.initInternal();
     }
 
     @Override
     protected void startInternal() {
-        try {
-            ServerBootstrap boot = new ServerBootstrap();
-            boot.group(bossGroup, workGroup)
-                    .channel(NioServerSocketChannel.class)
-                    .childHandler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel channel) {
-                            ChannelPipeline cp = channel.pipeline();
-                            cp.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
-                            cp.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
-                                    Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
-                            cp.addLast(RelayMessageWriteEncoder.INSTANCE);
-                            cp.addLast(new ClientSessionHandler(sessionManager, authStrategy));
-                            cp.addLast(new ProxyRelayMessageHandler());
-                        }
-                    });
-            boot.bind(host, port).addListener(f -> {
-                if (!f.isSuccess()) {
-                    logger.error("Proxy server start failure, address:[{}:{}]", host, port, f.cause());
-                } else {
-                    logger.info("Proxy server start success, address:[{}:{}]", host, port);
-                }
-            }).await();
-        } catch (Exception ex) {
-            throw new ComponentException(ex);
-        }
 
         super.startInternal();
     }
 
     @Override
     protected void destroyInternal() {
-        bossGroup.shutdownGracefully();
-        workGroup.shutdownGracefully();
-
         super.destroyInternal();
     }
 
-    /**
-     * 从客户端传过来的代理中继消息，包含着需要的连接信息
-     */
-    private class ProxyRelayMessageHandler extends ChannelInboundHandlerAdapter {
-
-        @Override
-        public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            super.channelActive(ctx);
-        }
-
-        @Override
-        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-            super.channelInactive(ctx);
-        }
-
-        @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            if (msg instanceof ByteBuf) {
-                ByteBuf byteBuf = (ByteBuf) msg;
-                byte serviceId = byteBuf.getByte(byteBuf.readerIndex());
-                if (serviceId == PingMessage.SERVICE_ID) {
-                    new PingMessage(byteBuf);
-                    ctx.writeAndFlush(new PongMessage(), ctx.voidPromise());
-                } else if (serviceId == PongMessage.SERVICE_ID) {
-                    new PongMessage(byteBuf);
-                } else if (serviceId == ProxyRequestMessage.SERVICE_ID) {
-                    ProxyRequestMessage message = new ProxyRequestMessage(byteBuf);
-
-                    SessionManager sessionManager = ProxyCoreComponent.this.sessionManager;
-                    ClientSession clientSession = sessionManager.getSession(ctx.channel().id().asShortText());
-                    clientSession.updateActivityTime();
-
-                    ProxyTaskRequest request = new ProxyTaskRequest(message, clientSession);
-                    dispatcher.publishProxyTask(request);
-                }
-            } else {
-                ctx.fireChannelRead(msg);
-            }
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.error(cause.getMessage(), cause);
-        }
+    public TcpProxyDispatchComponent getDispatcher() {
+        return dispatcher;
     }
+
 }

@@ -1,21 +1,20 @@
 package com.sunder.juxtapose.client;
 
 import com.sunder.juxtapose.client.ProxyMessageTransfer.SimpleProxyMessageTransfer;
+import com.sunder.juxtapose.common.id.IdGenerator;
+import com.sunder.juxtapose.common.id.SimpleIdGenerator;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 
 import java.util.Objects;
-import java.util.Queue;
-import java.util.concurrent.LinkedTransferQueue;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author : denglinhai
  * @date : 16:29 2023/6/21
  */
 public class ProxyRequest {
-    public final static AtomicLong ID_GENERATOR = new AtomicLong(0);
+    public final static IdGenerator ID_GENERATOR = new SimpleIdGenerator();
 
     private final Long serialId;
     private String protocol; // 协议
@@ -32,7 +31,7 @@ public class ProxyRequest {
         this.host = host;
         this.port = port;
         this.clientChannel = clientChannel;
-        this.serialId = ID_GENERATOR.incrementAndGet();
+        this.serialId = ID_GENERATOR.nextId();
     }
 
     public ProxyRequest(String protocol, String host, Integer port, Channel clientChannel) {
@@ -40,7 +39,7 @@ public class ProxyRequest {
         this.host = host;
         this.port = port;
         this.clientChannel = clientChannel;
-        this.serialId = ID_GENERATOR.incrementAndGet();
+        this.serialId = ID_GENERATOR.nextId();
     }
 
     public Long getSerialId() {

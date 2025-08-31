@@ -88,6 +88,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
      */
     private class ProxyTask implements Runnable, ProxyTaskSubscriber {
         private final BlockingQueue<ProxyTaskRequest> taskQueue;
+        // todo: 需要清理代理关闭的链接
         private final ConcurrentActiveConMap activeConnects;
 
         public ProxyTask() {
@@ -195,7 +196,9 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                         message.getSerialId(), message.getHost(), message.getPort());
                 ByteBuf content = message.getContent();
                 do {
-                    channelFuture.channel().writeAndFlush(content);
+                    if (content != null) {
+                        channelFuture.channel().writeAndFlush(content);
+                    }
                 } while ((content = conn.getCache().poll()) != null);
             } else {
                 logger.info("[{}]Proxy server failed to connect to the target server:[{}:{}].",

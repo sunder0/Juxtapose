@@ -43,6 +43,18 @@ public class ClientSession implements Session {
     }
 
     /**
+     * 构建一个绑定channel的session
+     *
+     * @param channel channel
+     */
+    public static ClientSession buildChannelBoundSession(String sessionId, SocketChannel channel) {
+        ClientSession clientSession = new ClientSession(sessionId, channel);
+        clientSession.changeState(SessionState.CONNECTED);
+        channel.attr(ClientSession.SESSION_KEY).set(clientSession);
+        return clientSession;
+    }
+
+    /**
      * 状态修改
      *
      * @param newState 新状态
@@ -95,7 +107,7 @@ public class ClientSession implements Session {
     public void updateActivityTime() {
         this.lastActivityTime = System.currentTimeMillis();
         // 如果当前是IDLE或者AUTHENTICATED状态，有活动时恢复为ACTIVE状态
-        if (state == SessionState.IDLE || state == SessionState.AUTHENTICATED) {
+        if (state == SessionState.IDLE || state == SessionState.AUTHENTICATED || state == SessionState.CONNECTED) {
             changeState(SessionState.ACTIVE);
         }
     }

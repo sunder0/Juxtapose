@@ -32,7 +32,7 @@ public class ProxyRequestMessage extends Message {
 
     @Override
     protected ByteBuf serialize0(ByteBufAllocator allocator) {
-        //long(serialId) + int(host length) + host + short(port) + int(content length)
+        // long(serialId) + int(host length) + host + short(port) + int(content length)
         byte[] hostBytes = host.getBytes(StandardCharsets.UTF_8);
 
         ByteBuf header = allocator.directBuffer(8 + 4 + hostBytes.length + 2 + 4);
@@ -94,4 +94,5 @@ public class ProxyRequestMessage extends Message {
     public void setContent(ByteBuf content) {
         this.content = content;
     }
+
 }

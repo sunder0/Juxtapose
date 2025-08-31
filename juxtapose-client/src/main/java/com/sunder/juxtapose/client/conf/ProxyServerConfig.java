@@ -90,7 +90,7 @@ public class ProxyServerConfig extends BaseConfig {
      * 代理服务节点配置
      */
     public static class ProxyServerNodeConfig {
-        public String auth;
+        public Boolean auth;
         public String userName;
         public String password;
 

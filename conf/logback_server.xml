@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="true" scanPeriod="10 seconds">
     <springProperty scope="context" name="SERVICE_NAME" source="service.name" defaultValue="juxtapose"/>
-    <springProperty scope="context" name="LOG_PATH" source="logging.path" defaultValue="${JUXTAPOSE_HOME}/logs"/>
+    <springProperty scope="context" name="LOG_PATH" source="logging.path" defaultValue="../logs"/>
     <!-- 控制台输出 -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
@@ -19,32 +19,6 @@
             <maxFileSize>200MB</maxFileSize>
             <maxHistory>10</maxHistory>
             <totalSizeCap>20GB</totalSizeCap>
-        </rollingPolicy>
-        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{traceId}] [%thread] %-5level %logger{5} - %msg%n</pattern>
-        </encoder>
-    </appender>
-
-    <appender name="register" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_PATH}/register.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_PATH}/register.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
-            <maxHistory>10</maxHistory>
-            <totalSizeCap>10GB</totalSizeCap>
-        </rollingPolicy>
-        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{traceId}] [%thread] %-5level %logger{5} - %msg%n</pattern>
-        </encoder>
-    </appender>
-
-    <appender name="background" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_PATH}/background.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_PATH}/background.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <maxFileSize>100MB</maxFileSize>
-            <maxHistory>10</maxHistory>
-            <totalSizeCap>10GB</totalSizeCap>
         </rollingPolicy>
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{traceId}] [%thread] %-5level %logger{5} - %msg%n</pattern>

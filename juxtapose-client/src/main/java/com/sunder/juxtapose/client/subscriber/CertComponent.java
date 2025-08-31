@@ -24,13 +24,13 @@ import java.util.Objects;
  * @author : denglinhai
  * @date : 21:35 2025/08/06
  */
-public class CertComponent extends BaseComponent<ProxyRelayServerComponent> {
+public class CertComponent extends BaseComponent<JuxtaRelayServerComponent> {
     public final static String NAME = "CERT_COMPONENT";
     // 下载的ca证书存放路径
     private final String CA_CRT = "conf/ssl/ca.crt";
     private SslContext sslContext;
 
-    public CertComponent(ProxyRelayServerComponent parent) {
+    public CertComponent(JuxtaRelayServerComponent parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
     }
 

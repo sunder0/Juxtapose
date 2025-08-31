@@ -38,3 +38,4 @@ VMess	vmess	uuid, alterId, network	TCP/WebSocket
 Trojan	trojan	password, sni	TCP
 SOCKS5	socks5	username, password	TCP/UDP
 HTTP(S)
+以及用户自定义协议

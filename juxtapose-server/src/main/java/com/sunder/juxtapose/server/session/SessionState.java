@@ -63,6 +63,8 @@ public enum SessionState {
                 return next == SessionState.CONNECTED || next == SessionState.CLOSED;
             case CONNECTED:
                 return next == SessionState.AUTHENTICATING ||
+                        next == SessionState.ACTIVE ||
+                        next == SessionState.AUTHENTICATED ||
                         next == SessionState.DISCONNECTED ||
                         next == SessionState.CLOSED;
             case AUTHENTICATING:

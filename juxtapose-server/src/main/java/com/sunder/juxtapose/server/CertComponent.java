@@ -77,7 +77,7 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
 
         ServerConfig cfg = getConfigManager().getConfigByName(ServerConfig.NAME, ServerConfig.class);
         SslEncryptor sslEncryptor = SslEncryptProvider.provider(cfg.getEncryptMethod());
-        this.host = cfg.getRelayServerHost();
+        this.host = cfg.getProxyHost();
         this.port = cfg.getEncryptServerPort();
 
         MultiProtocolResource serverCrt = new MultiProtocolResource(SERVER_CRT, true);

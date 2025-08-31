@@ -65,6 +65,10 @@ public class ActiveProxyConnection {
         this.cache = cache;
     }
 
+    public int getSocketAddress() {
+        return (host + ":" + port).hashCode();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
