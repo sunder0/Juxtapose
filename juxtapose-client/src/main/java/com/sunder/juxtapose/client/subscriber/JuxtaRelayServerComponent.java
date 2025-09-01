@@ -19,6 +19,7 @@ import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
@@ -96,6 +97,13 @@ public class JuxtaRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
     }
 
     @Override
+    protected void destroyInternal() {
+        parent.removeProxyRequestSubscriber(this);
+
+        super.destroyInternal();
+    }
+
+    @Override
     public void subscribe(ProxyRequest request) {
         this.activeProxy.put(request.getSerialId(), request);
 
@@ -165,6 +173,9 @@ public class JuxtaRelayServerComponent extends BaseCompositeComponent<ProxyCoreC
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
+            ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
+                JuxtaRelayServerComponent.this.destroy();
+            });
         }
     }
 

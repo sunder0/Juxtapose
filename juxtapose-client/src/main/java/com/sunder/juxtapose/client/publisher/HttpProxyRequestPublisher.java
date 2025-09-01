@@ -7,9 +7,10 @@ import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
+import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -24,15 +25,25 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
+
+import java.net.URL;
+import java.util.Base64;
 
 /**
  * @author : denglinhai
@@ -43,6 +54,9 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
 
     private String host;
     private int port;
+    private boolean auth; // 是否开启了鉴权
+    private String userName;
+    private String password;
     private EventLoopGroup eventLoopGroup;
 
     public HttpProxyRequestPublisher(ProxyCoreComponent parent) {
@@ -54,6 +68,11 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
         ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
         this.port = cfg.getHttpPort();
         this.host = cfg.getHttpHost();
+        this.auth = cfg.getHttpAuth();
+        if (this.auth) {
+            this.userName = cfg.getHttpUser();
+            this.password = cfg.getHttpPwd();
+        }
 
         this.eventLoopGroup = new NioEventLoopGroup(3);
 
@@ -72,8 +91,8 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
                 @Override
                 protected void initChannel(SocketChannel channel) {
                     ChannelPipeline pipeline = channel.pipeline();
-                    pipeline.addLast(new HttpServerCodec());
-                    pipeline.addLast(new HttpObjectAggregator(65536));
+                    pipeline.addLast(new HttpRequestDecoder());
+                    pipeline.addLast(new HttpResponseEncoder());
                     pipeline.addLast(new HttpRequestHandler());
                 }
             });
@@ -105,53 +124,123 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
     /**
      * http请求转发处理器
      */
-    class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+    private class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> {
+        private boolean authPass;
+        private AuthenticationStrategy authStrategy;
 
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request)
-                throws Exception {
-            if (HttpMethod.CONNECT == request.method()) {
-                logger.info("connect http request...");
-
-                handleConnectMethod(ctx, request);
-            } else {
-                logger.warn("others http request...");
-
-                handleOthersMethod(ctx, request);
+        public HttpRequestHandler() {
+            this.authPass = !HttpProxyRequestPublisher.this.auth;
+            if (HttpProxyRequestPublisher.this.auth) {
+                this.authStrategy = new SimpleAuthenticationStrategy(HttpProxyRequestPublisher.this.userName,
+                        HttpProxyRequestPublisher.this.password);
             }
         }
 
-        private void handleConnectMethod(ChannelHandlerContext ctx, FullHttpRequest request) {
-            String[] parts = request.uri().split(":");
-            String host = parts[0];
-            int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 443;
-            ProxyRequest pr = new ProxyRequest(host, port, ctx.channel());
-            HttpProxyRequestPublisher.this.publishProxyRequest(pr);
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
+            if (msg instanceof HttpRequest) {
+                HttpRequest request = (HttpRequest) msg;
 
-            HttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.OK,
-                    Unpooled.copiedBuffer("Connection Established".getBytes()));
-            ctx.write(response);
-            ctx.pipeline().addLast(new TunnelProxyHandler(pr));
-            ctx.flush();
+                if (HttpMethod.CONNECT.equals(request.method())) {
+                    logger.info("connect http[{}] request...", request.uri());
+
+                    handleConnectMethod(ctx, request);
+                } else {
+                    logger.warn("others[{}] http[{}] request...", request.method(), request.uri());
+
+                    handleOthersMethod(ctx, request);
+                }
+            }
         }
 
-        private void handleOthersMethod(ChannelHandlerContext ctx, FullHttpRequest request) {
-            String[] parts = request.uri().split(":");
+        /**
+         * 处理HTTPS的connect请求，回答connect后会建立一条通道进行传输
+         *
+         * @param ctx 调用链上下文
+         * @param request HttpRequest（请求行+请求头）
+         */
+        private void handleConnectMethod(ChannelHandlerContext ctx, HttpRequest request) {
+            if (!authPass) {
+                // eg:Proxy-Authorization: Basic cm9vdDpyb290
+                String encodedCredentials = request.headers().get(HttpHeaderNames.PROXY_AUTHORIZATION);
+                if (encodedCredentials == null) {
+                    sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(),
+                            "proxy-authorization absent");
+                    return;
+                }
+
+                String credentials = new String(
+                        Base64.getDecoder().decode(encodedCredentials.replace("Basic ", "")),
+                        CharsetUtil.UTF_8
+                );
+
+                // 验证用户名和密码
+                String[] userParts = credentials.split(":", 2);
+                if (userParts.length != 2) {
+                    sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
+                    return;
+                }
+
+                if (authStrategy != null && authStrategy.checkPermission(userParts[0], userParts[1])) {
+                    authPass = true;
+                    logger.info("connect http[{}] request auth passed.", request.uri());
+                } else {
+                    sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
+                    return;
+                }
+            }
+
+            String[] parts = request.uri().split(":", 2);
+            if (parts.length != 2) {
+                sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
+                        "Malformed HTTP Request");
+            }
+
             String host = parts[0];
-            int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 443;
+            int port = Integer.parseInt(parts[1]);
             ProxyRequest pr = new ProxyRequest(host, port, ctx.channel());
             HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
-            ctx.pipeline().addLast(new PlaintextProxyHandler(pr));
-            ctx.fireChannelRead(request);
+            HttpResponse response = new DefaultFullHttpResponse(
+                    request.protocolVersion(),
+                    HttpResponseStatus.OK,
+                    Unpooled.copiedBuffer("Connection Established".getBytes())
+            );
+            ctx.writeAndFlush(response).addListener((ChannelFutureListener) channelFuture -> {
+                if (channelFuture.isSuccess()) {
+                    ctx.pipeline().addLast(new TunnelProxyHandler(pr));
+                }
+            });
+        }
+
+        /**
+         * 处理非connect请求的普通HTTP请求
+         *
+         * @param ctx 调用链上下文
+         * @param request HttpRequest（请求行+请求头）
+         */
+        private void handleOthersMethod(ChannelHandlerContext ctx, HttpRequest request) {
+            String[] parts = request.uri().split(":", 2);
+            if (parts.length != 2) {
+                sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
+                        "Malformed HTTP Request");
+            }
+            String host = parts[0];
+            int port = Integer.parseInt(parts[1]);
+            ProxyRequest pr = new ProxyRequest(host, port, ctx.channel());
+            HttpProxyRequestPublisher.this.publishProxyRequest(pr);
+
+            ctx.pipeline().addLast(new PlaintextProxyHandler(pr, request));
+            // ctx.fireChannelRead(request);
         }
 
         /**
          * 发送错误响应
          */
-        private void sendErrorResponse(ChannelHandlerContext ctx, HttpResponseStatus status, String message) {
+        private void sendErrorResponse(ChannelHandlerContext ctx, HttpResponseStatus status, HttpVersion version,
+                String message) {
             FullHttpResponse response = new DefaultFullHttpResponse(
-                    HttpVersion.HTTP_1_1,
+                    version,
                     status,
                     Unpooled.copiedBuffer(message.getBytes())
             );
@@ -163,7 +252,7 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
      * http(s) tunnel管道处理器
      */
     private class TunnelProxyHandler extends ChannelInboundHandlerAdapter {
-        private ProxyRequest proxyRequest;
+        private final ProxyRequest proxyRequest;
 
         public TunnelProxyHandler(ProxyRequest proxyRequest) {
             this.proxyRequest = proxyRequest;
@@ -185,8 +274,9 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
 
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
-            ctx.pipeline().remove(HttpObjectAggregator.class);
-            ctx.pipeline().remove(HttpServerCodec.class);
+            // connect成功后建立通道就使用原始数据进行传输
+            ctx.pipeline().remove(HttpResponseEncoder.class);
+            ctx.pipeline().remove(HttpRequestDecoder.class);
             ctx.pipeline().remove(HttpRequestHandler.class);
         }
     }
@@ -196,34 +286,59 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
      */
     private class PlaintextProxyHandler extends ChannelInboundHandlerAdapter {
         private ProxyRequest proxyRequest;
-        private EmbeddedChannel channel = new EmbeddedChannel(new HttpRequestEncoder());
+        private EmbeddedChannel writeEncoder = new EmbeddedChannel(new HttpRequestEncoder() {
+            @Override
+            protected boolean isContentAlwaysEmpty(HttpRequest msg) {
+                return true;
+            }
+        });
 
-        public PlaintextProxyHandler(ProxyRequest proxyRequest) {
+        public PlaintextProxyHandler(ProxyRequest proxyRequest, HttpRequest firstRequest) {
             this.proxyRequest = proxyRequest;
+
+            writeEncoder.writeOutbound(firstRequest);
+            ByteBuf result = writeEncoder.readOutbound();
+            writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
+            try {
+                proxyRequest.transferMessage(result.retain());
+            } finally {
+                ReferenceCountUtil.release(result);
+            }
         }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            if (msg instanceof FullHttpRequest) {
-                FullHttpRequest request = (FullHttpRequest) msg;
-                try {
-                    // 写入请求到通道（触发编码）
-                    channel.writeOutbound(request);
-                    // 读取编码后的ByteBuf
-                    CompositeByteBuf composite = Unpooled.compositeBuffer();
-                    while (true) {
-                        ByteBuf buf = channel.readOutbound();
-                        if (buf == null) {
-                            break;
-                        }
-                        composite.addComponent(true, buf);
-                    }
+            if (msg instanceof HttpRequest) {
+                HttpRequest request = (HttpRequest) msg;
 
-                    // 4. 确保资源释放
-                    request.release();
-                    proxyRequest.transferMessage(composite.retain());
+                HttpHeaders header = request.headers();
+                if (header.contains(HttpHeaderNames.PROXY_CONNECTION)) {
+                    String val = header.get(HttpHeaderNames.PROXY_CONNECTION);
+                    header.remove(HttpHeaderNames.PROXY_CONNECTION).add(HttpHeaderNames.CONNECTION, val);
+                }
+
+                URL url = new URL(request.uri());
+                if (!url.getHost().equals(proxyRequest.getHost())) {
+                    logger.warn("Reuse Http proxy connection");
+                    ctx.close();
+                    return;
+                }
+
+                // 修改请求URI为绝对路径
+                request.setUri(url.getPath());
+                writeEncoder.writeOutbound(msg);
+                ByteBuf buf = writeEncoder.readOutbound();
+                writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
+                try {
+                    proxyRequest.transferMessage(buf.retain());
                 } finally {
-                    //channel.close();
+                    ReferenceCountUtil.release(buf);
+                }
+            } else if (msg instanceof HttpContent) {
+                try {
+                    proxyRequest.transferMessage(((HttpContent) msg).content().retain());
+                } finally {
+                    ReferenceCountUtil.release(msg);
                 }
             } else {
                 ctx.fireChannelRead(msg);
@@ -232,6 +347,8 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
 
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+            // 从代理服务器返回的就是http报文，不需要在此encode，但是需要decode从客户端传过来的request
+            ctx.pipeline().remove(HttpResponseEncoder.class);
             ctx.pipeline().remove(HttpRequestHandler.class);
         }
     }

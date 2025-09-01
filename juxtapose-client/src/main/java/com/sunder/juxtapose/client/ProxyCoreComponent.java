@@ -5,7 +5,7 @@ import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.publisher.HttpProxyRequestPublisher;
 import com.sunder.juxtapose.client.publisher.Socks5ProxyRequestPublisher;
-import com.sunder.juxtapose.client.subscriber.LocalDirectForwardSubscriber;
+import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
 import com.sunder.juxtapose.client.subscriber.JuxtaRelayServerComponent;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
@@ -44,7 +44,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
         // 添加http本地代理
         addChildComponent(new HttpProxyRequestPublisher(this));
         // 添加直连订阅
-        addChildComponent(new LocalDirectForwardSubscriber(this));
+        addChildComponent(new DirectForwardingSubscriber(this));
 
         // 添加代理订阅
         for (ProxyServerNodeConfig node : proxyServerCfg.getProxyNodeConfigs()) {

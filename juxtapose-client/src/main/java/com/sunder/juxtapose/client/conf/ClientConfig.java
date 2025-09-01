@@ -15,9 +15,9 @@ import java.nio.charset.StandardCharsets;
  */
 public class ClientConfig extends BaseConfig {
     public final static String NAME = "CLIENT_CONFIG";
-    private final static String SOCKS_GROUP = "Socks5";
-    private final static String HTTP_GROUP = "Http";
-    private final static String ENCRYPT_GROUP = "Encrypt";
+    private final static String SOCKS_GROUP = "SOCKS5";
+    private final static String HTTP_GROUP = "HTTP";
+    private final static String ENCRYPT_GROUP = "ENCRYPT";
 
     private final String CLIENT_CONFIG_FILE = "conf/client.properties";
     private Setting config; // 存储整个client.properties的配置
@@ -91,6 +91,18 @@ public class ClientConfig extends BaseConfig {
 
     public int getHttpPort() {
         return config.getInt("http.port", HTTP_GROUP, 1201);
+    }
+
+    public boolean getHttpAuth() {
+        return config.getBool("http.auth", HTTP_GROUP, false);
+    }
+
+    public String getHttpUser() {
+        return config.getStr("http.userName", HTTP_GROUP, "0");
+    }
+
+    public String getHttpPwd() {
+        return config.getStr("http.password", HTTP_GROUP, "1");
     }
 
 }

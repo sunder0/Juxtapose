@@ -95,9 +95,9 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
                     });
             boot.bind(host, port).addListener(f -> {
                 if (!f.isSuccess()) {
-                    logger.error("Proxy server start failure, address:[{}:{}]", host, port, f.cause());
+                    logger.error("Juxta proxy server start failure, address:[{}:{}]", host, port, f.cause());
                 } else {
-                    logger.info("Proxy server start success, address:[{}:{}]", host, port);
+                    logger.info("Juxta proxy server start success, address:[{}:{}]", host, port);
                 }
             }).await();
         } catch (Exception ex) {
@@ -231,7 +231,6 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
                 ctx.fireChannelRead(msg);
             }
         }
-
     }
 
 }

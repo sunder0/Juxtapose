@@ -25,14 +25,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * @date : 17:52 2023/6/21
  *         直接转发请求组件
  */
-public class LocalDirectForwardSubscriber extends BaseComponent<ProxyCoreComponent> implements ProxyRequestSubscriber,
+public class DirectForwardingSubscriber extends BaseComponent<ProxyCoreComponent> implements ProxyRequestSubscriber,
         ProxyMessageReceiver {
     public final static String NAME = "DIRECT_FORWARDING_SUBSCRIBER";
 
     private final Bootstrap bootstrap;
     private Map<Long, SocketChannel> relayChannel = new ConcurrentHashMap<>();
 
-    public LocalDirectForwardSubscriber(ProxyCoreComponent parent) {
+    public DirectForwardingSubscriber(ProxyCoreComponent parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(new NioEventLoopGroup(2))
@@ -77,7 +77,7 @@ public class LocalDirectForwardSubscriber extends BaseComponent<ProxyCoreCompone
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             relayChannel.putIfAbsent(request.getSerialId(), (SocketChannel) ctx.channel());
-            request.setProxyMessageReceiver(LocalDirectForwardSubscriber.this);
+            request.setProxyMessageReceiver(DirectForwardingSubscriber.this);
 
             ctx.fireChannelActive();
         }
