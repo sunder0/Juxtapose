@@ -42,7 +42,7 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 
-import java.net.URL;
+import java.net.URI;
 import java.util.Base64;
 
 /**
@@ -160,34 +160,9 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
          * @param request HttpRequest（请求行+请求头）
          */
         private void handleConnectMethod(ChannelHandlerContext ctx, HttpRequest request) {
-            if (!authPass) {
-                // eg:Proxy-Authorization: Basic cm9vdDpyb290
-                String encodedCredentials = request.headers().get(HttpHeaderNames.PROXY_AUTHORIZATION);
-                if (encodedCredentials == null) {
-                    sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(),
-                            "proxy-authorization absent");
-                    return;
-                }
-
-                String credentials = new String(
-                        Base64.getDecoder().decode(encodedCredentials.replace("Basic ", "")),
-                        CharsetUtil.UTF_8
-                );
-
-                // 验证用户名和密码
-                String[] userParts = credentials.split(":", 2);
-                if (userParts.length != 2) {
-                    sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
-                    return;
-                }
-
-                if (authStrategy != null && authStrategy.checkPermission(userParts[0], userParts[1])) {
-                    authPass = true;
-                    logger.info("connect http[{}] request auth passed.", request.uri());
-                } else {
-                    sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
-                    return;
-                }
+            if (!authPass && !basicAuthentication(ctx, request)) {
+                logger.error("http proxy auth fail, url[{}].", request.uri());
+                return;
             }
 
             String[] parts = request.uri().split(":", 2);
@@ -220,18 +195,83 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
          * @param request HttpRequest（请求行+请求头）
          */
         private void handleOthersMethod(ChannelHandlerContext ctx, HttpRequest request) {
-            String[] parts = request.uri().split(":", 2);
-            if (parts.length != 2) {
-                sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
-                        "Malformed HTTP Request");
+            if (!authPass && !basicAuthentication(ctx, request)) {
+                logger.error("http proxy auth fail, url[{}].", request.uri());
+                return;
             }
-            String host = parts[0];
-            int port = Integer.parseInt(parts[1]);
+
+            String host = null;
+            int port = 80;
+            try {
+                URI uri = new URI(request.uri());
+                if (uri.getHost() != null) {
+                    // 绝对URI (例如: http://example.com/path)
+                    host = uri.getHost();
+                    port = uri.getPort() == -1 ? 80 : uri.getPort();
+
+                    // 修改请求URI为相对路径
+                    String path = uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
+                    request.setUri(path);
+                    System.out.println(path);
+                    System.out.println(uri.getPath());
+                } else {
+                    // 相对URI，从Host头获取主机信息
+                    host = request.headers().get(HttpHeaderNames.HOST);
+                    if (host == null) {
+                        sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
+                                "Missing Host header");
+                        return;
+                    }
+
+                    // 处理可能包含端口的Host头
+                    String[] hostParts = host.split(":", 2);
+                    host = hostParts[0];
+                    port = hostParts.length > 1 ? Integer.parseInt(hostParts[1]) : 80;
+                }
+            } catch (Exception ex) {
+                logger.error("handle [{}] request error[{}].", request.method(), ex.getMessage(), ex);
+            }
+
             ProxyRequest pr = new ProxyRequest(host, port, ctx.channel());
             HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
             ctx.pipeline().addLast(new PlaintextProxyHandler(pr, request));
-            // ctx.fireChannelRead(request);
+        }
+
+        /**
+         * basic权限认证
+         * @param ctx 调用上下文
+         * @param request http请求
+         * @return 是否认证成功
+         */
+        private boolean basicAuthentication(ChannelHandlerContext ctx, HttpRequest request) {
+            // eg:Proxy-Authorization: Basic cm9vdDpyb290
+            String encodedCredentials = request.headers().get(HttpHeaderNames.PROXY_AUTHORIZATION);
+            if (encodedCredentials == null) {
+                sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(),
+                        "proxy-authorization absent");
+                return false;
+            }
+
+            String credentials = new String(
+                    Base64.getDecoder().decode(encodedCredentials.replace("Basic ", "")),
+                    CharsetUtil.UTF_8
+            );
+
+            // 验证用户名和密码
+            String[] userParts = credentials.split(":", 2);
+            if (userParts.length != 2) {
+                sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
+                return false;
+            }
+
+            if (authStrategy != null && authStrategy.checkPermission(userParts[0], userParts[1])) {
+                logger.info("connect http[{}] request auth passed.", request.uri());
+                return authPass = true;
+            } else {
+                sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
+                return false;
+            }
         }
 
         /**
@@ -285,8 +325,8 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
      * 其他直接http 协议处理，直接转发
      */
     private class PlaintextProxyHandler extends ChannelInboundHandlerAdapter {
-        private ProxyRequest proxyRequest;
-        private EmbeddedChannel writeEncoder = new EmbeddedChannel(new HttpRequestEncoder() {
+        private final ProxyRequest proxyRequest;
+        private final EmbeddedChannel writeEncoder = new EmbeddedChannel(new HttpRequestEncoder() {
             @Override
             protected boolean isContentAlwaysEmpty(HttpRequest msg) {
                 return true;
@@ -317,15 +357,10 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
                     header.remove(HttpHeaderNames.PROXY_CONNECTION).add(HttpHeaderNames.CONNECTION, val);
                 }
 
-                URL url = new URL(request.uri());
-                if (!url.getHost().equals(proxyRequest.getHost())) {
-                    logger.warn("Reuse Http proxy connection");
-                    ctx.close();
-                    return;
-                }
+                URI uri = new URI(request.uri());
+                String path = uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
+                request.setUri(path);
 
-                // 修改请求URI为绝对路径
-                request.setUri(url.getPath());
                 writeEncoder.writeOutbound(msg);
                 ByteBuf buf = writeEncoder.readOutbound();
                 writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
