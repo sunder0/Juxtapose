@@ -38,7 +38,7 @@ public class ProxyTaskHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ByteBuf) {
             ByteBuf byteBuf = (ByteBuf) msg;
-            if (request.getProtocol() == ProxyProtocol.SOCKS5) {
+            if (request.getProtocol() == ProxyProtocol.SOCKS5 || request.getProtocol() == ProxyProtocol.HTTP) {
                 request.getClientSession().writeAndFlush(byteBuf);
             } else if (request.getProtocol() == ProxyProtocol.JUXTA) {
                 ProxyResponseMessage message = new ProxyResponseMessage(request.getMessage().getSerialId(), byteBuf);

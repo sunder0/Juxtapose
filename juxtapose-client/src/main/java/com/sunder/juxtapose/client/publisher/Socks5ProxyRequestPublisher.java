@@ -3,11 +3,12 @@ package com.sunder.juxtapose.client.publisher;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
-import com.sunder.juxtapose.client.handler.TcpProxyMessageHandler;
 import com.sunder.juxtapose.client.conf.ClientConfig;
+import com.sunder.juxtapose.client.handler.TcpProxyMessageHandler;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import io.netty.bootstrap.ServerBootstrap;
@@ -17,9 +18,8 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.ServerSocketChannel;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.socks.SocksAddressType;
 import io.netty.handler.codec.socks.SocksAuthRequest;
 import io.netty.handler.codec.socks.SocksAuthRequestDecoder;
@@ -39,7 +39,8 @@ import io.netty.handler.codec.socks.SocksRequest;
  * @author : denglinhai
  * @date : 16:32 2025/07/19
  */
-public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyRequestPublisher {
+public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
+        Platform {
     public final static String NAME = "SOCKS5_PROXY_REQUEST_PUBLISHER";
 
     private String host;
@@ -47,6 +48,7 @@ public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponen
     private boolean auth; // 是否开启了鉴权
     private String userName;
     private String password;
+    private Class<? extends ServerSocketChannel> serverSocketChannel;
     private EventLoopGroup eventLoopGroup;
 
     public Socks5ProxyRequestPublisher(ProxyCoreComponent parent) {
@@ -64,7 +66,8 @@ public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponen
             this.password = cfg.getSocks5Pwd();
         }
 
-        this.eventLoopGroup = new NioEventLoopGroup(3);
+        this.serverSocketChannel = getServerSocketChannelClass();
+        this.eventLoopGroup = createEventLoopGroup(3);
 
         super.initInternal();
     }
@@ -74,7 +77,7 @@ public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponen
         try {
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(eventLoopGroup)
-                    .channel(NioServerSocketChannel.class)
+                    .channel(serverSocketChannel)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {

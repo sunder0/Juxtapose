@@ -36,6 +36,14 @@ public interface ProxyRequestSubscriber extends Named {
     }
 
     /**
+     * 订阅服务端url，，eg：127.0.0.1:443
+     * @return ProxyMode
+     */
+    default String proxyUri() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * 订阅一个请求代理
      *
      * @param request 代理请求

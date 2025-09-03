@@ -7,6 +7,7 @@ import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import com.sunder.juxtapose.server.conf.ServerConfig;
+import com.sunder.juxtapose.server.proxy.HttpProxyTaskPublisher;
 import com.sunder.juxtapose.server.proxy.JuxtaProxyTaskPublisher;
 import com.sunder.juxtapose.server.proxy.Socks5ProxyTaskPublisher;
 import com.sunder.juxtapose.server.session.SessionManager;
@@ -41,7 +42,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
         } else if (protocol == ProxyProtocol.SOCKS5) {
             addChildComponent(new Socks5ProxyTaskPublisher(this));
         } else if (protocol == ProxyProtocol.HTTP) {
-            //todo
+            addChildComponent(new HttpProxyTaskPublisher(this));
         } else if (protocol == ProxyProtocol.VMESS) {
             //todo
         }

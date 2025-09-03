@@ -90,8 +90,11 @@ public class ProxyServerConfig extends BaseConfig {
      * 代理服务节点配置
      */
     public static class ProxyServerNodeConfig {
+        public String name;
+
+        public Boolean tls;
         public Boolean auth;
-        public String userName;
+        public String username;
         public String password;
 
         public ProxyProtocol protocol;
@@ -116,8 +119,10 @@ public class ProxyServerConfig extends BaseConfig {
         @Override
         public String toString() {
             return "ProxyServerNodeConfig{" +
-                    "auth='" + auth + '\'' +
-                    ", userName='" + userName + '\'' +
+                    "name='" + name + '\'' +
+                    ", tls=" + tls +
+                    ", auth=" + auth +
+                    ", username='" + username + '\'' +
                     ", password='" + password + '\'' +
                     ", protocol=" + protocol +
                     ", host='" + host + '\'' +

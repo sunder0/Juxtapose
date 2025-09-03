@@ -71,6 +71,10 @@ public class ServerConfig extends BaseConfig {
         return config.getBool("proxy.auth", PROXY_SERVER_GROUP, false);
     }
 
+    public boolean getProxyTls() {
+        return config.getBool("proxy.tls", PROXY_SERVER_GROUP, false);
+    }
+
     public String getProxyUserName() {
         return config.getStr("proxy.username", PROXY_SERVER_GROUP, null);
     }

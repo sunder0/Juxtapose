@@ -3,8 +3,8 @@
 
 建议：
 
-添加身份验证和授权机制
-实现TLS/SSL加密通信
+~~添加身份验证和授权机制~~
+~~实现TLS/SSL加密通信~~
 添加流量限制和防滥用措施
 考虑添加数据加密功能 
 可扩展性改进
@@ -39,3 +39,7 @@ Trojan	trojan	password, sni	TCP
 SOCKS5	socks5	username, password	TCP/UDP
 HTTP(S)
 以及用户自定义协议
+
+域名ip库geoip
+
+rule规则模式（黑、白名单）

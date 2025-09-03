@@ -1,4 +1,4 @@
-package com.sunder.juxtapose.client.subscriber;
+package com.sunder.juxtapose.client;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.http.HttpResponse;
@@ -24,13 +24,13 @@ import java.util.Objects;
  * @author : denglinhai
  * @date : 21:35 2025/08/06
  */
-public class CertComponent extends BaseComponent<JuxtaRelayServerComponent> {
+public class CertComponent extends BaseComponent<ProxyCoreComponent> {
     public final static String NAME = "CERT_COMPONENT";
     // 下载的ca证书存放路径
     private final String CA_CRT = "conf/ssl/ca.crt";
     private SslContext sslContext;
 
-    public CertComponent(JuxtaRelayServerComponent parent) {
+    public CertComponent(ProxyCoreComponent parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
     }
 
@@ -45,7 +45,7 @@ public class CertComponent extends BaseComponent<JuxtaRelayServerComponent> {
         URL cacrt = getClass().getClassLoader().getResource(CA_CRT);
         if (cacrt == null) {
             try (HttpResponse response = HttpUtil.createGet(
-                    String.format("http://%s:%s/ca.crt", parent.getHost(), 2202)).execute()) {
+                    String.format("http://%s:%s/ca.crt", cfg.getEncryptHost(), cfg.getEncryptPort())).execute()) {
                 URL classpathRoot = getClass().getClassLoader().getResource("");
                 Path path = Paths.get(classpathRoot.toURI()).resolve(CA_CRT);
                 FileUtil.writeString(response.body(), path.toFile(), StandardCharsets.UTF_8);
@@ -61,7 +61,7 @@ public class CertComponent extends BaseComponent<JuxtaRelayServerComponent> {
             throw new ComponentException("Init ssl encryptor fail!", ex);
         }
 
-        super.initInternal();
+        logger.info("load ssl cert successful...");
     }
 
     public SslContext getSslContext() {

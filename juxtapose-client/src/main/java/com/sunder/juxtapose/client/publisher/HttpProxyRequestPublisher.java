@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.client.publisher;
 
+import cn.hutool.core.lang.Pair;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
@@ -7,6 +8,7 @@ import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import io.netty.bootstrap.ServerBootstrap;
@@ -21,9 +23,8 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.ServerSocketChannel;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
@@ -43,13 +44,15 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Base64;
 
 /**
  * @author : denglinhai
  * @date : 15:49 2025/08/13
  */
-public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyRequestPublisher {
+public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
+        Platform {
     public final static String NAME = "HTTP_PROXY_REQUEST_PUBLISHER";
 
     private String host;
@@ -57,6 +60,7 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
     private boolean auth; // 是否开启了鉴权
     private String userName;
     private String password;
+    private Class<? extends ServerSocketChannel> serverSocketChannel;
     private EventLoopGroup eventLoopGroup;
 
     public HttpProxyRequestPublisher(ProxyCoreComponent parent) {
@@ -74,7 +78,8 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
             this.password = cfg.getHttpPwd();
         }
 
-        this.eventLoopGroup = new NioEventLoopGroup(3);
+        this.serverSocketChannel = getServerSocketChannelClass();
+        this.eventLoopGroup = createEventLoopGroup(3);
 
         super.initInternal();
     }
@@ -84,7 +89,7 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
         try {
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(eventLoopGroup)
-                    .channel(NioServerSocketChannel.class)
+                    .channel(serverSocketChannel)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
                     .option(ChannelOption.SO_KEEPALIVE, true);
             boot.childHandler(new ChannelInitializer<SocketChannel>() {
@@ -137,7 +142,7 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
+        protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
             if (msg instanceof HttpRequest) {
                 HttpRequest request = (HttpRequest) msg;
 
@@ -159,21 +164,14 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
          * @param ctx 调用链上下文
          * @param request HttpRequest（请求行+请求头）
          */
-        private void handleConnectMethod(ChannelHandlerContext ctx, HttpRequest request) {
+        private void handleConnectMethod(ChannelHandlerContext ctx, HttpRequest request) throws Exception {
             if (!authPass && !basicAuthentication(ctx, request)) {
                 logger.error("http proxy auth fail, url[{}].", request.uri());
                 return;
             }
 
-            String[] parts = request.uri().split(":", 2);
-            if (parts.length != 2) {
-                sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
-                        "Malformed HTTP Request");
-            }
-
-            String host = parts[0];
-            int port = Integer.parseInt(parts[1]);
-            ProxyRequest pr = new ProxyRequest(host, port, ctx.channel());
+            Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
+            ProxyRequest pr = new ProxyRequest(hostInfo.getKey(), hostInfo.getValue(), ctx.channel());
             HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
             HttpResponse response = new DefaultFullHttpResponse(
@@ -194,45 +192,22 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
          * @param ctx 调用链上下文
          * @param request HttpRequest（请求行+请求头）
          */
-        private void handleOthersMethod(ChannelHandlerContext ctx, HttpRequest request) {
+        private void handleOthersMethod(ChannelHandlerContext ctx, HttpRequest request) throws Exception {
             if (!authPass && !basicAuthentication(ctx, request)) {
                 logger.error("http proxy auth fail, url[{}].", request.uri());
                 return;
             }
 
-            String host = null;
-            int port = 80;
-            try {
-                URI uri = new URI(request.uri());
-                if (uri.getHost() != null) {
-                    // 绝对URI (例如: http://example.com/path)
-                    host = uri.getHost();
-                    port = uri.getPort() == -1 ? 80 : uri.getPort();
-
-                    // 修改请求URI为相对路径
-                    String path = uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
-                    request.setUri(path);
-                    System.out.println(path);
-                    System.out.println(uri.getPath());
-                } else {
-                    // 相对URI，从Host头获取主机信息
-                    host = request.headers().get(HttpHeaderNames.HOST);
-                    if (host == null) {
-                        sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
-                                "Missing Host header");
-                        return;
-                    }
-
-                    // 处理可能包含端口的Host头
-                    String[] hostParts = host.split(":", 2);
-                    host = hostParts[0];
-                    port = hostParts.length > 1 ? Integer.parseInt(hostParts[1]) : 80;
-                }
-            } catch (Exception ex) {
-                logger.error("handle [{}] request error[{}].", request.method(), ex.getMessage(), ex);
+            Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
+            // 修改请求URI为相对路径
+            URI uri = new URI(request.uri());
+            // 绝对URI (例如: http://example.com/path)
+            if (uri.getHost() != null) {
+                String path = uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
+                request.setUri(path);
             }
 
-            ProxyRequest pr = new ProxyRequest(host, port, ctx.channel());
+            ProxyRequest pr = new ProxyRequest(hostInfo.getKey(), hostInfo.getValue(), ctx.channel());
             HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
             ctx.pipeline().addLast(new PlaintextProxyHandler(pr, request));
@@ -240,6 +215,7 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
 
         /**
          * basic权限认证
+         *
          * @param ctx 调用上下文
          * @param request http请求
          * @return 是否认证成功
@@ -271,6 +247,48 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
             } else {
                 sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
                 return false;
+            }
+        }
+
+        /**
+         * 从URI中解析HOST和port
+         *
+         * @param request http请求
+         * @return host -> port
+         * @throws Exception
+         */
+        private Pair<String, Integer> parseHostInfoFromURI(ChannelHandlerContext ctx, HttpRequest request)
+                throws Exception {
+            URI uri = null;
+            try {
+                uri = new URI(request.uri());
+            } catch (URISyntaxException ex) {
+                // eg: 5dfaddfb-90a1-4fa5-841e-0a3a560c76b9.gheapi.com:80
+                String[] hostParts = host.split(":", 2);
+                String host = hostParts[0];
+                int port = hostParts.length > 1 ? Integer.parseInt(hostParts[1]) : 80;
+                return new Pair<>(host, port);
+            }
+
+            if (uri.getHost() != null) {
+                // 绝对URI (例如: http://example.com/path)
+                String host = uri.getHost();
+                int port = uri.getPort() == -1 ? 80 : uri.getPort();
+                return new Pair<>(host, port);
+            } else {
+                // 相对URI，从Host头获取主机信息
+                host = request.headers().get(HttpHeaderNames.HOST);
+                if (host == null) {
+                    sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
+                            "Missing Host header");
+                    throw new RuntimeException("Missing Host header");
+                }
+
+                // 处理可能包含端口的Host头
+                String[] hostParts = host.split(":", 2);
+                String host = hostParts[0];
+                int port = hostParts.length > 1 ? Integer.parseInt(hostParts[1]) : 80;
+                return new Pair<>(host, port);
             }
         }
 

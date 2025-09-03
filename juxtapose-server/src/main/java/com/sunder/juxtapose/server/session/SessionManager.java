@@ -92,9 +92,27 @@ public class SessionManager extends BaseModule<ProxyCoreComponent> {
      * 打印session的一些统计数据
      */
     private void showClientSessionStatics() {
+        int active =0;
+        int authenticated = 0;
+        int disconnected = 0;
+        int connected = 0;
         for (ClientSession session : sessionMap.values()) {
-            logger.info("Session[{}] current state:[{}].", session.getSessionId(), session.toString());
+            if (session.getState() == SessionState.ACTIVE) {
+                active++;
+            }
+            if (session.getState() == SessionState.AUTHENTICATED) {
+                authenticated++;
+            }
+            if (session.getState() == SessionState.DISCONNECTED) {
+                disconnected++;
+            }
+            if (session.getState() == SessionState.CONNECTED) {
+                connected++;
+            }
         }
+
+        logger.info("Session current active:[{}], authenticated:[{}], connected:[{}], disconnected:[{}].", active,
+                authenticated, connected, disconnected);
     }
 
 }

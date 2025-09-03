@@ -3,6 +3,7 @@ package com.sunder.juxtapose.server;
 import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.server.handler.ProxyTaskHandler;
 import com.sunder.juxtapose.server.session.ClientSession;
@@ -13,9 +14,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 
 import java.util.List;
 import java.util.Objects;
@@ -86,7 +85,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
     /**
      * 代理任务，打开一个对外连接
      */
-    private class ProxyTask implements Runnable, ProxyTaskSubscriber {
+    private class ProxyTask implements Runnable, ProxyTaskSubscriber, Platform {
         private final BlockingQueue<ProxyTaskRequest> taskQueue;
         // todo: 需要清理代理关闭的链接
         private final ConcurrentActiveConMap activeConnects;
@@ -118,8 +117,8 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                         logger.info("start proxy connection[{}]", request.getMessage().getHost());
                         Bootstrap bootstrap = new Bootstrap();
 
-                        bootstrap.group(new NioEventLoopGroup(2))
-                                .channel(NioSocketChannel.class)
+                        bootstrap.group(createEventLoopGroup(2))
+                                .channel(getSocketChannelClass())
                                 .option(ChannelOption.SO_KEEPALIVE, true)
                                 .option(ChannelOption.AUTO_CLOSE, true)
                                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)

@@ -3,6 +3,7 @@ package com.sunder.juxtapose.server.proxy;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
@@ -29,26 +30,28 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.ServerSocketChannel;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 
 /**
  * @author : denglinhai
  * @date : 19:35 2025/08/26
  */
-public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher {
+public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher
+        , Platform {
     public final static String NAME = "USER_DEF_PROXY_COMPONENT";
 
     private String host;
     private int port;
     private boolean auth; // 是否开启了鉴权
+    private boolean tls; // 是否开启ssl加密
     private String userName;
     private String password;
     private CertComponent certComponent;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workGroup;
+    private Class<? extends ServerSocketChannel> serverSocketChannel;
     private SessionManager sessionManager;
 
     public JuxtaProxyTaskPublisher(ProxyCoreComponent parent) {
@@ -61,13 +64,15 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
         this.host = cfg.getProxyHost();
         this.port = cfg.getProxyPort();
         this.auth = cfg.getProxyAuth();
+        this.tls = cfg.getProxyTls();
         if (this.auth) {
             this.userName = cfg.getProxyUserName();
             this.password = cfg.getProxyPassword();
         }
 
-        bossGroup = new NioEventLoopGroup(1);
-        workGroup = new NioEventLoopGroup(4);
+        bossGroup = createEventLoopGroup(1);
+        workGroup = createEventLoopGroup(4);
+        serverSocketChannel = getServerSocketChannelClass();
 
         sessionManager = getModuleByName(SessionManager.NAME, true, SessionManager.class);
         certComponent = getParentComponent().getChildComponentByName(CertComponent.NAME, CertComponent.class);
@@ -80,12 +85,14 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
         try {
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(bossGroup, workGroup)
-                    .channel(NioServerSocketChannel.class)
+                    .channel(serverSocketChannel)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {
                             ChannelPipeline cp = channel.pipeline();
-                            cp.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
+                            if (tls) {
+                                cp.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
+                            }
                             cp.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                                     Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                             cp.addLast(RelayMessageWriteEncoder.INSTANCE);

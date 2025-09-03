@@ -154,7 +154,7 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
             // 只处理 GET 请求
-            if (request.method().equals(HttpMethod.GET)) {
+            if (!request.method().equals(HttpMethod.GET)) {
                 sendError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED);
                 return;
             }

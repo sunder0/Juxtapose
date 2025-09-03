@@ -6,11 +6,13 @@ import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.publisher.HttpProxyRequestPublisher;
 import com.sunder.juxtapose.client.publisher.Socks5ProxyRequestPublisher;
 import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
-import com.sunder.juxtapose.client.subscriber.JuxtaRelayServerComponent;
+import com.sunder.juxtapose.client.subscriber.HttpProxyRequestSubscriber;
+import com.sunder.juxtapose.client.subscriber.JuxtaProxyRequestSubscriber;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.ProxyMode;
+import com.sunder.juxtapose.common.ProxyProtocol;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +27,8 @@ import java.util.stream.Collectors;
 public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> implements ProxyRequestPublisher {
     public final static String NAME = "PROXY_CORE_COMPONENT";
 
+    // 证书信息
+    private CertComponent certComponent;
     // 代理节点的配置信息
     private ProxyServerConfig proxyServerCfg;
     // 代理请求的订阅者, NAME -> ProxyRequestSubscriber
@@ -39,6 +43,8 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
         ConfigManager<?> configManager = getConfigManager();
         configManager.registerConfig((proxyServerCfg = new ProxyServerConfig(configManager)));
 
+        addChildComponent(certComponent = new CertComponent(this));
+        //certComponent.initInternal();
         // 添加socks5本地代理
         addChildComponent(new Socks5ProxyRequestPublisher(this));
         // 添加http本地代理
@@ -48,7 +54,11 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
 
         // 添加代理订阅
         for (ProxyServerNodeConfig node : proxyServerCfg.getProxyNodeConfigs()) {
-            addChildComponent(new JuxtaRelayServerComponent(node, this));
+            if (node.protocol == ProxyProtocol.JUXTA) {
+                addChildComponent(new JuxtaProxyRequestSubscriber(node, certComponent, this));
+            } else if (node.protocol == ProxyProtocol.HTTP) {
+                addChildComponent(new HttpProxyRequestSubscriber(node, certComponent, this));
+            }
         }
 
         super.initInternal();

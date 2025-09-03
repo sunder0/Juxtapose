@@ -85,6 +85,14 @@ public class ClientConfig extends BaseConfig {
         return config.getStr("encrypt.method", ENCRYPT_GROUP, "pem");
     }
 
+    public String getEncryptHost() {
+        return config.getStr("encrypt.host", ENCRYPT_GROUP, "127.0.0.1");
+    }
+
+    public int getEncryptPort() {
+        return config.getInt("encrypt.port", ENCRYPT_GROUP, 2202);
+    }
+
     public String getHttpHost() {
         return config.getStr("http.host", HTTP_GROUP, "127.0.0.1");
     }
