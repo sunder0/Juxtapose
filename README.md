@@ -1,5 +1,6 @@
 # Juxtapose
 
+![juxta architecture diagram](https://suyeq.oss-cn-shenzhen.aliyuncs.com/juxta/Juxta%E6%9E%B6%E6%9E%84.png)
 
 建议：
 
