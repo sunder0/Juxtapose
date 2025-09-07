@@ -1,6 +1,7 @@
 package com.sunder.juxtapose.client.publisher;
 
 import cn.hutool.core.lang.Pair;
+import com.sunder.juxtapose.client.CertComponent;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
@@ -40,6 +41,7 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 
@@ -168,16 +170,17 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
             if (!authPass && !basicAuthentication(ctx, request)) {
                 logger.error("http proxy auth fail, url[{}].", request.uri());
                 return;
+            } else {
+                logger.info("connect http[{}] request auth passed.", request.uri());
             }
 
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
             ProxyRequest pr = new ProxyRequest(hostInfo.getKey(), hostInfo.getValue(), ctx.channel());
             HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
+            // 注意: window proxy does not require a body
             HttpResponse response = new DefaultFullHttpResponse(
-                    request.protocolVersion(),
-                    HttpResponseStatus.OK,
-                    Unpooled.copiedBuffer("Connection Established".getBytes())
+                    request.protocolVersion(), HttpResponseStatus.OK
             );
             ctx.writeAndFlush(response).addListener((ChannelFutureListener) channelFuture -> {
                 if (channelFuture.isSuccess()) {
@@ -196,6 +199,8 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
             if (!authPass && !basicAuthentication(ctx, request)) {
                 logger.error("http proxy auth fail, url[{}].", request.uri());
                 return;
+            } else {
+                logger.info("connect http[{}] request auth passed.", request.uri());
             }
 
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
@@ -242,7 +247,6 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
             }
 
             if (authStrategy != null && authStrategy.checkPermission(userParts[0], userParts[1])) {
-                logger.info("connect http[{}] request auth passed.", request.uri());
                 return authPass = true;
             } else {
                 sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");

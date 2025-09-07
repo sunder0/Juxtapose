@@ -36,6 +36,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
@@ -47,10 +48,13 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Base64;
 
 /**
@@ -200,15 +204,15 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             if (!authPass && !basicAuthentication(ctx, request)) {
                 logger.error("http proxy auth fail, url[{}].", request.uri());
                 return;
+            } else {
+                logger.info("connect http[{}] request auth passed.", request.uri());
             }
 
             clientSession.changeState(SessionState.AUTHENTICATED);
 
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
             HttpResponse response = new DefaultFullHttpResponse(
-                    request.protocolVersion(),
-                    HttpResponseStatus.OK,
-                    Unpooled.copiedBuffer("Connection Established".getBytes())
+                    request.protocolVersion(), HttpResponseStatus.OK
             );
             ctx.writeAndFlush(response).addListener((ChannelFutureListener) channelFuture -> {
                 if (channelFuture.isSuccess()) {
@@ -229,6 +233,8 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             if (!authPass && !basicAuthentication(ctx, request)) {
                 logger.error("http proxy auth fail, url[{}].", request.uri());
                 return;
+            } else {
+                logger.info("connect http[{}] request auth passed.", request.uri());
             }
 
             clientSession.changeState(SessionState.AUTHENTICATED);
@@ -276,7 +282,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             }
 
             if (authStrategy != null && authStrategy.checkPermission(userParts[0], userParts[1])) {
-                logger.info("connect http[{}] request auth passed.", request.uri());
                 return authPass = true;
             } else {
                 sendErrorResponse(ctx, HttpResponseStatus.UNAUTHORIZED, request.protocolVersion(), "Unauthorized");
@@ -293,7 +298,16 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
          */
         private Pair<String, Integer> parseHostInfoFromURI(ChannelHandlerContext ctx, HttpRequest request)
                 throws Exception {
-            URI uri = new URI(request.uri());
+            URI uri = null;
+            try {
+                uri = new URI(request.uri());
+            } catch (URISyntaxException ex) {
+                // eg: 5dfaddfb-90a1-4fa5-841e-0a3a560c76b9.gheapi.com:80
+                String[] hostParts = host.split(":", 2);
+                String host = hostParts[0];
+                int port = hostParts.length > 1 ? Integer.parseInt(hostParts[1]) : 80;
+                return new Pair<>(host, port);
+            }
             if (uri.getHost() != null) {
                 // 绝对URI (例如: http://example.com/path)
                 String host = uri.getHost();
