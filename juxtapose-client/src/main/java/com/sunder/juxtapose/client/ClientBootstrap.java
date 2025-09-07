@@ -36,4 +36,11 @@ public final class ClientBootstrap extends BootstrapComponent {
         bootstrap.start();
     }
 
+    private void registerShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.info("close juxtapose client...");
+
+        }));
+    }
+
 }

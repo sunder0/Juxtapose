@@ -76,6 +76,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
 
     @Override
     protected void destroyInternal() {
+
         super.destroyInternal();
     }
 

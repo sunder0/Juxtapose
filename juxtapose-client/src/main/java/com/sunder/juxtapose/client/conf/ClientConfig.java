@@ -18,6 +18,7 @@ public class ClientConfig extends BaseConfig {
     private final static String SOCKS_GROUP = "SOCKS5";
     private final static String HTTP_GROUP = "HTTP";
     private final static String ENCRYPT_GROUP = "ENCRYPT";
+    private final static String SYSTEM_GROUP = "SYSTEM";
 
     private final String CLIENT_CONFIG_FILE = "conf/client.properties";
     private Setting config; // 存储整个client.properties的配置
@@ -57,9 +58,26 @@ public class ClientConfig extends BaseConfig {
         return config.getStr("logging.level", "info");
     }
 
+
+    /**------------------------------------- system proxy -------------------------------------**/
+
     public ProxyMode getProxyMode() {
         return ProxyMode.valueOf(config.getStr("proxy.mode", "RULE"));
     }
+
+    public boolean getProxyEnable() {
+        return config.getBool("proxy.enable", true);
+    }
+
+    public String getProxyHost() {
+        return config.getStr("proxy.host", "127.0.0.1");
+    }
+
+    public String getProxyOverride() {
+        return config.getStr("proxy.override", "localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*");
+    }
+
+    /**------------------------------------- socks5 proxy -------------------------------------**/
 
     public String getSocks5Host() {
         return config.getStr("socks.host", SOCKS_GROUP, "127.0.0.1");
@@ -81,6 +99,8 @@ public class ClientConfig extends BaseConfig {
         return config.getStr("socks.password", SOCKS_GROUP, "1");
     }
 
+    /**------------------------------------- encrypt -------------------------------------**/
+
     public String getEncryptMethod() {
         return config.getStr("encrypt.method", ENCRYPT_GROUP, "pem");
     }
@@ -92,6 +112,8 @@ public class ClientConfig extends BaseConfig {
     public int getEncryptPort() {
         return config.getInt("encrypt.port", ENCRYPT_GROUP, 2202);
     }
+
+    /**------------------------------------- http proxy -------------------------------------**/
 
     public String getHttpHost() {
         return config.getStr("http.host", HTTP_GROUP, "127.0.0.1");

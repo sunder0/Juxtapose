@@ -1,12 +1,12 @@
 package com.sunder.juxtapose.client.publisher;
 
 import cn.hutool.core.lang.Pair;
-import com.sunder.juxtapose.client.CertComponent;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
 import com.sunder.juxtapose.client.conf.ClientConfig;
-import com.sunder.juxtapose.common.BaseComponent;
+import com.sunder.juxtapose.client.http.WindowsSystemProxySetting;
+import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
@@ -41,7 +41,6 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 
@@ -53,7 +52,7 @@ import java.util.Base64;
  * @author : denglinhai
  * @date : 15:49 2025/08/13
  */
-public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
+public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
         Platform {
     public final static String NAME = "HTTP_PROXY_REQUEST_PUBLISHER";
 
@@ -78,6 +77,9 @@ public class HttpProxyRequestPublisher extends BaseComponent<ProxyCoreComponent>
         if (this.auth) {
             this.userName = cfg.getHttpUser();
             this.password = cfg.getHttpPwd();
+        }
+        if (isWindows()) {
+            addChildComponent(new WindowsSystemProxySetting(this));
         }
 
         this.serverSocketChannel = getServerSocketChannelClass();
