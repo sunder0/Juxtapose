@@ -58,7 +58,6 @@ public class ClientConfig extends BaseConfig {
         return config.getStr("logging.level", "info");
     }
 
-
     /**------------------------------------- system proxy -------------------------------------**/
 
     public ProxyMode getProxyMode() {

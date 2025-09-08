@@ -33,11 +33,11 @@ public interface Platform {
     }
 
     /**
-     * 是否是unix系统
+     * 是否是mac系统
      *
      * @return boolean
      */
-    default boolean isUnix() {
+    default boolean isMac() {
         return PlatformDependent.isOsx();
     }
 

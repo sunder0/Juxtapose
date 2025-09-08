@@ -1,7 +1,5 @@
 package com.sunder.juxtapose.common;
 
-import cn.hutool.log.Log;
-import cn.hutool.log.LogFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

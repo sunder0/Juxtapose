@@ -5,7 +5,8 @@ import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.handler.TcpProxyMessageHandler;
-import com.sunder.juxtapose.common.BaseComponent;
+import com.sunder.juxtapose.client.system.MacOSSystemProxySetting;
+import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
@@ -39,7 +40,7 @@ import io.netty.handler.codec.socks.SocksRequest;
  * @author : denglinhai
  * @date : 16:32 2025/07/19
  */
-public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
+public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
         Platform {
     public final static String NAME = "SOCKS5_PROXY_REQUEST_PUBLISHER";
 
@@ -64,6 +65,10 @@ public class Socks5ProxyRequestPublisher extends BaseComponent<ProxyCoreComponen
         if (this.auth) {
             this.userName = cfg.getSocks5User();
             this.password = cfg.getSocks5Pwd();
+        }
+
+        if (isMac()) {
+            addChildComponent(new MacOSSystemProxySetting(this));
         }
 
         this.serverSocketChannel = getServerSocketChannelClass();

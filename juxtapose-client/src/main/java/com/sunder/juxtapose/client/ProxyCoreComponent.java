@@ -44,7 +44,6 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
         configManager.registerConfig((proxyServerCfg = new ProxyServerConfig(configManager)));
 
         addChildComponent(certComponent = new CertComponent(this));
-        //certComponent.initInternal();
         // 添加socks5本地代理
         addChildComponent(new Socks5ProxyRequestPublisher(this));
         // 添加http本地代理
