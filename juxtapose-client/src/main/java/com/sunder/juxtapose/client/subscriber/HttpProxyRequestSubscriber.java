@@ -41,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @date : 17:46 2025/09/02
  */
 public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyCoreComponent>
-        implements ProxyRequestSubscriber, ProxyMessageReceiver, Platform {
+        implements ProxyRequestSubscriber, ProxyMessageReceiver {
     public final static String NAME = "HTTP_PROXY_SERVER";
 
     private Bootstrap bootstrap;
@@ -63,8 +63,8 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyCore
     @Override
     protected void initInternal() {
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(createEventLoopGroup(2))
-                .channel(getSocketChannelClass())
+        bootstrap.group(Platform.createEventLoopGroup(2))
+                .channel(Platform.socketChannelClass())
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {

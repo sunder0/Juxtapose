@@ -52,8 +52,8 @@ import java.util.Base64;
  * @author : denglinhai
  * @date : 15:49 2025/08/13
  */
-public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
-        Platform {
+public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent>
+        implements ProxyRequestPublisher {
     public final static String NAME = "HTTP_PROXY_REQUEST_PUBLISHER";
 
     private String host;
@@ -78,12 +78,12 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             this.userName = cfg.getHttpUser();
             this.password = cfg.getHttpPwd();
         }
-        if (isWindows()) {
+        if (Platform.isWindows()) {
             addChildComponent(new WindowsSystemProxySetting(this));
         }
 
-        this.serverSocketChannel = getServerSocketChannelClass();
-        this.eventLoopGroup = createEventLoopGroup(3);
+        this.serverSocketChannel = Platform.serverSocketChannelClass();
+        this.eventLoopGroup = Platform.createEventLoopGroup(3);
 
         super.initInternal();
     }

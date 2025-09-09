@@ -17,7 +17,7 @@ import com.sunder.juxtapose.server.session.SessionManager;
  * @author : denglinhai
  * @date : 22:24 2025/07/21
  */
-public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.juxtapose.server.ServerBootstrap> {
+public final class ProxyCoreComponent extends BaseCompositeComponent<StandardServer> {
     public final static String NAME = "PROXY_CORE_COMPONENT";
 
     // 认证策略，后续改成从DB获取
@@ -27,7 +27,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<com.sunder.
     private SessionManager sessionManager;
     private TcpProxyDispatchComponent dispatcher;
 
-    public ProxyCoreComponent(com.sunder.juxtapose.server.ServerBootstrap parent) {
+    public ProxyCoreComponent(StandardServer parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
     }
 

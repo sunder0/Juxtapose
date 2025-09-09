@@ -85,7 +85,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
     /**
      * 代理任务，打开一个对外连接
      */
-    private class ProxyTask implements Runnable, ProxyTaskSubscriber, Platform {
+    private class ProxyTask implements Runnable, ProxyTaskSubscriber {
         private final BlockingQueue<ProxyTaskRequest> taskQueue;
         // todo: 需要清理代理关闭的链接
         private final ConcurrentActiveConMap activeConnects;
@@ -117,8 +117,8 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                         logger.info("start proxy connection[{}]", request.getMessage().getHost());
                         Bootstrap bootstrap = new Bootstrap();
 
-                        bootstrap.group(createEventLoopGroup(2))
-                                .channel(getSocketChannelClass())
+                        bootstrap.group(Platform.createEventLoopGroup(2))
+                                .channel(Platform.socketChannelClass())
                                 .option(ChannelOption.SO_KEEPALIVE, true)
                                 .option(ChannelOption.AUTO_CLOSE, true)
                                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)

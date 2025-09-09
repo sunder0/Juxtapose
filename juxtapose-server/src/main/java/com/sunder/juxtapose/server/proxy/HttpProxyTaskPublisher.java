@@ -36,7 +36,6 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObject;
@@ -48,8 +47,6 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
 
@@ -61,8 +58,7 @@ import java.util.Base64;
  * @author : denglinhai
  * @date : 19:36 2025/08/26
  */
-public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher,
-        Platform {
+public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher {
     public final static String NAME = "HTTP_PROXY_TASK_PUBLISHER";
 
     private String host;
@@ -96,8 +92,8 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             this.password = cfg.getProxyPassword();
         }
 
-        this.bossGroup = createEventLoopGroup(1);
-        this.workGroup = createEventLoopGroup(4);
+        this.bossGroup = Platform.createEventLoopGroup(1);
+        this.workGroup = Platform.createEventLoopGroup(4);
 
         this.sessionManager = getModuleByName(SessionManager.NAME, true, SessionManager.class);
         this.certComponent = getParentComponent().getChildComponentByName(CertComponent.NAME, CertComponent.class);
@@ -110,7 +106,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
         try {
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(bossGroup, workGroup)
-                    .channel(getServerSocketChannelClass())
+                    .channel(Platform.serverSocketChannelClass())
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
                     .option(ChannelOption.SO_KEEPALIVE, true);
             boot.childHandler(new ChannelInitializer<SocketChannel>() {

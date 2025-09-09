@@ -40,8 +40,8 @@ import io.netty.handler.codec.socks.SocksRequest;
  * @author : denglinhai
  * @date : 16:32 2025/07/19
  */
-public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyRequestPublisher,
-        Platform {
+public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent>
+        implements ProxyRequestPublisher {
     public final static String NAME = "SOCKS5_PROXY_REQUEST_PUBLISHER";
 
     private String host;
@@ -67,12 +67,12 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
             this.password = cfg.getSocks5Pwd();
         }
 
-        if (isMac()) {
+        if (Platform.isMac()) {
             addChildComponent(new MacOSSystemProxySetting(this));
         }
 
-        this.serverSocketChannel = getServerSocketChannelClass();
-        this.eventLoopGroup = createEventLoopGroup(3);
+        this.serverSocketChannel = Platform.serverSocketChannelClass();
+        this.eventLoopGroup = Platform.createEventLoopGroup(3);
 
         super.initInternal();
     }

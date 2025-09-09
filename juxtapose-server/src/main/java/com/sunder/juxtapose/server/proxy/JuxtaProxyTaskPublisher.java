@@ -38,8 +38,7 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
  * @author : denglinhai
  * @date : 19:35 2025/08/26
  */
-public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher
-        , Platform {
+public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher {
     public final static String NAME = "USER_DEF_PROXY_COMPONENT";
 
     private String host;
@@ -70,9 +69,9 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
             this.password = cfg.getProxyPassword();
         }
 
-        bossGroup = createEventLoopGroup(1);
-        workGroup = createEventLoopGroup(4);
-        serverSocketChannel = getServerSocketChannelClass();
+        bossGroup = Platform.createEventLoopGroup(1);
+        workGroup = Platform.createEventLoopGroup(4);
+        serverSocketChannel = Platform.serverSocketChannelClass();
 
         sessionManager = getModuleByName(SessionManager.NAME, true, SessionManager.class);
         certComponent = getParentComponent().getChildComponentByName(CertComponent.NAME, CertComponent.class);

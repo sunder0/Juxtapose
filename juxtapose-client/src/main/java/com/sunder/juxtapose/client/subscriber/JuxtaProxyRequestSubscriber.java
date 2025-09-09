@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @date : 15:38 2023/7/5
  */
 public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxyCoreComponent>
-        implements ProxyRequestSubscriber, ProxyMessageReceiver, Platform {
+        implements ProxyRequestSubscriber, ProxyMessageReceiver {
     public final static String NAME = "JUXTA_PROXY_SERVER";
 
     private Class<? extends SocketChannel> socketChannel;
@@ -63,8 +63,8 @@ public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxyCor
 
     @Override
     protected void initInternal() {
-        this.socketChannel = getSocketChannelClass();
-        this.eventLoopGroup = createEventLoopGroup(2);
+        this.socketChannel = Platform.socketChannelClass();
+        this.eventLoopGroup = Platform.createEventLoopGroup(2);
 
         super.initInternal();
     }

@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * @author : denglinhai
  * @date : 23:49 2025/07/14
  */
-public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> implements ProxyRequestPublisher {
+public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> implements ProxyRequestPublisher {
     public final static String NAME = "PROXY_CORE_COMPONENT";
 
     // 证书信息
@@ -34,7 +34,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<ClientBootstrap> 
     // 代理请求的订阅者, NAME -> ProxyRequestSubscriber
     private final Map<String, ProxyRequestSubscriber> proxySubscribers = new ConcurrentHashMap<>();
 
-    public ProxyCoreComponent(ClientBootstrap parent) {
+    public ProxyCoreComponent(StandardClient parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
     }
 

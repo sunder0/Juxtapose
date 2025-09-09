@@ -48,8 +48,7 @@ import io.netty.handler.codec.socks.SocksRequest;
  * @author : denglinhai
  * @date : 19:36 2025/08/26
  */
-public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyTaskPublisher,
-        Platform {
+public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyTaskPublisher {
     public final static String NAME = "SOCKS5_PROXY_COMPONENT";
 
     private String host;
@@ -81,9 +80,9 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
             this.password = cfg.getProxyPassword();
         }
 
-        this.bossGroup = createEventLoopGroup(1);
-        this.workGroup = createEventLoopGroup(4);
-        this.serverSocketChannel = getServerSocketChannelClass();
+        this.bossGroup = Platform.createEventLoopGroup(1);
+        this.workGroup = Platform.createEventLoopGroup(4);
+        this.serverSocketChannel = Platform.serverSocketChannelClass();
 
         sessionManager = getModuleByName(SessionManager.NAME, true, SessionManager.class);
         certComponent = getParentComponent().getChildComponentByName(CertComponent.NAME, CertComponent.class);
@@ -101,7 +100,7 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
                         @Override
                         protected void initChannel(SocketChannel channel) {
                             ChannelPipeline pipeline = channel.pipeline();
-                            //pipeline.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
+                            // pipeline.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
                             pipeline.addLast(new SocksInitRequestDecoder());
                             pipeline.addLast(new SocksMessageEncoder());
                             pipeline.addLast(new SocksRequestHandler());
@@ -188,7 +187,8 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
                 }
                 case UNKNOWN:
                 default: {  // 未知请求关闭连接
-                    logger.info("Unknown socks command, from cmd:[{}], address: {}", request.requestType(), ctx.channel().localAddress().toString());
+                    logger.info("Unknown socks command, from cmd:[{}], address: {}", request.requestType(),
+                            ctx.channel().localAddress().toString());
                     ctx.close();
                 }
             }

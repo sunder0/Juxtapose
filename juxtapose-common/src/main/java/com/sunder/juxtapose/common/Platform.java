@@ -28,7 +28,7 @@ public interface Platform {
      *
      * @return boolean
      */
-    default boolean isWindows() {
+    static boolean isWindows() {
         return PlatformDependent.isWindows();
     }
 
@@ -37,8 +37,23 @@ public interface Platform {
      *
      * @return boolean
      */
-    default boolean isMac() {
+    static boolean isMac() {
         return PlatformDependent.isOsx();
+    }
+
+    /**
+     * 获取系统值，先从properties找，再从env里找
+     *
+     * @param name key
+     * @return val
+     */
+    static String getSystemVal(String name) {
+        String varValue = System.getProperty(name);
+        // 环境变量中查找
+        if (null == varValue) {
+            varValue = System.getenv(name);
+        }
+        return varValue;
     }
 
     /**
@@ -46,7 +61,7 @@ public interface Platform {
      *
      * @return ServerSocketChannel
      */
-    default Class<? extends ServerSocketChannel> getServerSocketChannelClass() {
+    static Class<? extends ServerSocketChannel> serverSocketChannelClass() {
         if (Epoll.isAvailable()) {
             return EpollServerSocketChannel.class;
         }
@@ -62,7 +77,7 @@ public interface Platform {
      *
      * @return SocketChannel
      */
-    default Class<? extends SocketChannel> getSocketChannelClass() {
+    static Class<? extends SocketChannel> socketChannelClass() {
         if (Epoll.isAvailable()) {
             return EpollSocketChannel.class;
         }
@@ -79,7 +94,7 @@ public interface Platform {
      * @param nThreads 线程数
      * @return EventLoopGroup
      */
-    default EventLoopGroup createEventLoopGroup(int nThreads) {
+    static EventLoopGroup createEventLoopGroup(int nThreads) {
         if (Epoll.isAvailable()) {
             return new EpollEventLoopGroup(nThreads);
         }
