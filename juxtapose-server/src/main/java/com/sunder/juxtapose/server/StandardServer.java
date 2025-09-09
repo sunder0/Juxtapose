@@ -25,9 +25,9 @@ public final class StandardServer extends ToplevelComponent {
         DefaultConfigManager<StandardServer> configManager = new DefaultConfigManager<>(this);
         addModule(configManager);
 
-        ServerConfig cfg;
-        configManager.registerConfig(cfg = new ServerConfig(configManager));
-        addModule(new LogModule<>(cfg.getLogConfig(), this));
+        ServerConfig cfg = new ServerConfig(configManager);
+        configManager.registerConfig(cfg);
+        addModule(new LogModule<>(cfg.getLogConfig(), cfg.getLogLevel(), this));
 
         addChildComponent(new ProxyCoreComponent(this));
 
@@ -47,6 +47,7 @@ public final class StandardServer extends ToplevelComponent {
             StandardServer server = new StandardServer();
             server.init();
             server.start();
+            logger.info("Juxtapose server start successful.");
         } catch (Exception ex) {
             logger.error("Juxtapose server start error.", ex);
             System.exit(0);

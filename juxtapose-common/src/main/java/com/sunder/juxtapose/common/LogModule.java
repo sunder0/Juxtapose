@@ -2,7 +2,6 @@ package com.sunder.juxtapose.common;
 
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.joran.JoranConfigurator;
-import ch.qos.logback.core.util.StatusPrinter;
 import cn.hutool.core.io.resource.FileResource;
 import cn.hutool.core.io.resource.Resource;
 import org.slf4j.LoggerFactory;
@@ -14,9 +13,9 @@ import org.slf4j.LoggerFactory;
 public class LogModule<T extends Component<?>> extends BaseModule<T> {
     public final static String NAME = "LOG_MODULE";
 
-    public LogModule(String logbackXml, T belongComponent) {
+    public LogModule(String logbackXml, String level, T belongComponent) {
         super(NAME, belongComponent);
-        initializeLogSystem(logbackXml);
+        initializeLogSystem(logbackXml, level);
     }
 
     /**
@@ -24,19 +23,18 @@ public class LogModule<T extends Component<?>> extends BaseModule<T> {
      *
      * @param logbackXml
      */
-    private void initializeLogSystem(String logbackXml) {
+    private void initializeLogSystem(String logbackXml, String level) {
         try {
             LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
 
             JoranConfigurator configurator = new JoranConfigurator();
             configurator.setContext(context);
             context.reset();
+            // 设置日志等级property
+            context.putProperty("LOG_LEVEL", level);
 
             Resource resource = new FileResource(logbackXml);
             configurator.doConfigure(resource.getStream());
-
-            // 输出状态信息（用于调试）
-            StatusPrinter.printInCaseOfErrorsOrWarnings(context);
             LoggerFactory.getLogger(LogModule.class).info("Logback initialized successfully");
         } catch (Exception ex) {
             throw new ComponentException("Logback initialized failed!", ex);

@@ -27,7 +27,7 @@ public final class StandardClient extends ToplevelComponent {
 
         ClientConfig cfg = new ClientConfig(configManager);
         configManager.registerConfig(cfg);
-        addModule(new LogModule<>(cfg.getLogConfig(), this));
+        addModule(new LogModule<>(cfg.getLogConfig(), cfg.getLogLevel(), this));
 
         addChildComponent(new ProxyCoreComponent(this));
 
