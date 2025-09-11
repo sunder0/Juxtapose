@@ -7,6 +7,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 
+import java.net.InetAddress;
 import java.util.Objects;
 
 /**
@@ -18,8 +19,10 @@ public class ProxyRequest {
 
     private final Long serialId;
     private String protocol; // 协议
-    private String host;
+    private String host; // 主机名，可能为域名/ipv4/ipv6地址
     private Integer port;
+    private String domain; // 单独存放域名
+    private InetAddress ip; // 存放java标准化后的ip格式
     // 与请求方保持的channel
     private final Channel clientChannel;
 
@@ -42,6 +45,15 @@ public class ProxyRequest {
         this.serialId = ID_GENERATOR.nextId();
     }
 
+    public ProxyRequest(String host, Integer port, String domain, InetAddress ip, Channel clientChannel) {
+        this.host = host;
+        this.port = port;
+        this.domain = domain;
+        this.ip = ip;
+        this.clientChannel = clientChannel;
+        this.serialId = ID_GENERATOR.nextId();
+    }
+
     public Long getSerialId() {
         return serialId;
     }
@@ -56,6 +68,14 @@ public class ProxyRequest {
 
     public String getProtocol() {
         return protocol;
+    }
+
+    public String getDomain() {
+        return domain;
+    }
+
+    public InetAddress getIp() {
+        return ip;
     }
 
     public Channel getClientChannel() {

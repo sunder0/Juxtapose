@@ -4,6 +4,7 @@ import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
 import com.sunder.juxtapose.client.conf.ClientConfig;
+import com.sunder.juxtapose.client.dns.StandardDnsResolverPool;
 import com.sunder.juxtapose.client.handler.TcpProxyMessageHandler;
 import com.sunder.juxtapose.client.system.MacOSSystemProxySetting;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
@@ -31,10 +32,14 @@ import io.netty.handler.codec.socks.SocksCmdRequest;
 import io.netty.handler.codec.socks.SocksCmdRequestDecoder;
 import io.netty.handler.codec.socks.SocksCmdResponse;
 import io.netty.handler.codec.socks.SocksCmdStatus;
+import io.netty.handler.codec.socks.SocksCmdType;
 import io.netty.handler.codec.socks.SocksInitRequestDecoder;
 import io.netty.handler.codec.socks.SocksInitResponse;
 import io.netty.handler.codec.socks.SocksMessageEncoder;
 import io.netty.handler.codec.socks.SocksRequest;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 /**
  * @author : denglinhai
@@ -51,6 +56,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
     private String password;
     private Class<? extends ServerSocketChannel> serverSocketChannel;
     private EventLoopGroup eventLoopGroup;
+    private StandardDnsResolverPool dnsResolver = StandardDnsResolverPool.dnsResolver;
 
     public Socks5ProxyRequestPublisher(ProxyCoreComponent parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
@@ -154,7 +160,8 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                 }
                 case CMD: {  // 如果是Socks5命令请求
                     if (!authPass) {
-                        ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.FORBIDDEN, SocksAddressType.IPv4))
+                        SocksCmdRequest cmd = (SocksCmdRequest) request;
+                        ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.FORBIDDEN, cmd.addressType()))
                                 .addListener(ChannelFutureListener.CLOSE);
                         return;
                     }
@@ -175,15 +182,46 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
             int port = request.port();
 
             logger.info("Socks command request to {}:{}", host, port);
+            switch (request.addressType()) {
+                case DOMAIN:
+                    dnsResolver.resolveAsync(host).addListener(f -> {
+                        if (f.isSuccess()) {
+                            InetAddress ip = (InetAddress) f.getNow();
+                            processCommandRequest(ctx, host, port, host, ip, request.addressType(), request.cmdType());
+                        } else {
+                            logger.error("Unknown Host[{}] error.", host, f.cause());
+                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.HOST_UNREACHABLE,
+                                    request.addressType())).addListener(ChannelFutureListener.CLOSE);
+                        }
+                    });
+                    break;
+                case IPv4:
+                case IPv6:
+                    try {
+                        // 1. 验证ip是否合法 2.标准化处理, todo: getByName不能校验格式问题，不能校验是否是ip
+                        InetAddress ip = InetAddress.getByName(host);
+                        processCommandRequest(ctx, host, port, host, ip, request.addressType(), request.cmdType());
+                    } catch (UnknownHostException ex) {
+                        logger.error("host address[{}] format error.", host, ex);
+                        ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.ADDRESS_NOT_SUPPORTED,
+                                request.addressType())).addListener(ChannelFutureListener.CLOSE);
+                    }
+                    break;
+                case UNKNOWN:
+                    throw new RuntimeException("Unsupported address type...");
+            }
+        }
 
-            switch (request.cmdType()) {
+        private void processCommandRequest(ChannelHandlerContext ctx, String host, int port, String domain,
+                InetAddress ip, SocksAddressType addressType, SocksCmdType cmdType) {
+            switch (cmdType) {
                 case CONNECT: {
                     logger.info("connect cmd...");
-                    ProxyRequest pr = new ProxyRequest(host, port, ctx.channel());
+                    ProxyRequest pr = new ProxyRequest(host, port, domain, ip, ctx.channel());
                     Socks5ProxyRequestPublisher.this.publishProxyRequest(pr);
 
-                    ctx.pipeline().addLast(new TcpProxyMessageHandler(pr)).remove(this);
-                    ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, request.addressType()));
+                    ctx.pipeline().addLast(new TcpProxyMessageHandler(pr)).remove(SocksRequestHandler.this);
+                    ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, addressType));
                 }
                 break;
 
@@ -207,8 +245,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
 
                 default: {
                     logger.info("Socks command request is not CONNECT or UDP.");
-                    ctx.writeAndFlush(
-                            new SocksCmdResponse(SocksCmdStatus.COMMAND_NOT_SUPPORTED, SocksAddressType.IPv4));
+                    ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.COMMAND_NOT_SUPPORTED, addressType));
                     ctx.close();
                 }
             }

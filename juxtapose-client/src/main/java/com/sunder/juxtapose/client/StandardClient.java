@@ -1,6 +1,7 @@
 package com.sunder.juxtapose.client;
 
 import com.sunder.juxtapose.client.conf.ClientConfig;
+import com.sunder.juxtapose.client.dns.StandardDnsResolverPool;
 import com.sunder.juxtapose.common.DefaultConfigManager;
 import com.sunder.juxtapose.common.LogModule;
 import com.sunder.juxtapose.common.Platform;
@@ -47,6 +48,7 @@ public final class StandardClient extends ToplevelComponent {
             StandardClient client = new StandardClient();
             client.init();
             client.start();
+            logger.info("Juxtapose client start successful.");
         } catch (Exception ex) {
             logger.error("Juxtapose client start error.", ex);
             System.exit(0);
@@ -59,7 +61,7 @@ public final class StandardClient extends ToplevelComponent {
     private void registerShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("close juxtapose client resource...");
-
+            StandardDnsResolverPool.dnsResolver.close();
         }));
     }
 
