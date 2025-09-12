@@ -1,10 +1,10 @@
 package com.sunder.juxtapose.client.subscriber;
 
 import com.sunder.juxtapose.client.CertComponent;
-import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyMessageReceiver;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestSubscriber;
+import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author : denglinhai
  * @date : 17:46 2025/09/02
  */
-public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyCoreComponent>
+public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServerNodeManager>
         implements ProxyRequestSubscriber, ProxyMessageReceiver {
     public final static String NAME = "HTTP_PROXY_SERVER";
 
@@ -51,9 +51,8 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyCore
     private final Map<Long, ProxyRequest> activeProxy = new ConcurrentHashMap<>(16); // 活跃的代理
 
     public HttpProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
-            ProxyCoreComponent parent) {
-        super(NAME + "_" + cfg.host + "_" + cfg.port, Objects.requireNonNull(parent),
-                ComponentLifecycleListener.INSTANCE);
+            ProxyServerNodeManager parent) {
+        super(cfg.name, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         this.cfg = cfg;
         this.certComponent = certComponent;
 

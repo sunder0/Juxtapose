@@ -21,6 +21,7 @@ public interface ProxyRequestSubscriber extends Named {
 
     /**
      * 是否支持代理
+     *
      * @return bool
      */
     default boolean isProxy() {
@@ -29,6 +30,7 @@ public interface ProxyRequestSubscriber extends Named {
 
     /**
      * 代理模式
+     *
      * @return ProxyMode
      */
     default ProxyProtocol proxyMode() {
@@ -37,9 +39,17 @@ public interface ProxyRequestSubscriber extends Named {
 
     /**
      * 订阅服务端url，，eg：127.0.0.1:443
+     *
      * @return ProxyMode
      */
     default String proxyUri() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @return 代理组名
+     */
+    default String proxyGroup() {
         throw new UnsupportedOperationException();
     }
 

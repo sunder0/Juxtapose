@@ -1,9 +1,9 @@
 package com.sunder.juxtapose.client.subscriber;
 
-import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyMessageReceiver;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestSubscriber;
+import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import io.netty.bootstrap.Bootstrap;
@@ -25,14 +25,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * @date : 17:52 2023/6/21
  *         直接转发请求组件
  */
-public class DirectForwardingSubscriber extends BaseComponent<ProxyCoreComponent> implements ProxyRequestSubscriber,
+public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeManager> implements ProxyRequestSubscriber,
         ProxyMessageReceiver {
     public final static String NAME = "DIRECT_FORWARDING_SUBSCRIBER";
 
     private final Bootstrap bootstrap;
     private Map<Long, SocketChannel> relayChannel = new ConcurrentHashMap<>();
 
-    public DirectForwardingSubscriber(ProxyCoreComponent parent) {
+    public DirectForwardingSubscriber(ProxyServerNodeManager parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(new NioEventLoopGroup(2))
@@ -94,6 +94,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyCoreComponent
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
+            request.close();
         }
     }
 

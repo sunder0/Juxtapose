@@ -153,6 +153,13 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             if (msg instanceof HttpRequest) {
                 HttpRequest request = (HttpRequest) msg;
 
+                if (!authPass && !basicAuthentication(ctx, request)) {
+                    logger.error("http proxy auth fail, url[{}].", request.uri());
+                    return;
+                } else {
+                    logger.info("connect http[{}] request auth passed.", request.uri());
+                }
+
                 if (HttpMethod.CONNECT.equals(request.method())) {
                     logger.info("connect http[{}] request...", request.uri());
 
@@ -172,13 +179,6 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
          * @param request HttpRequest（请求行+请求头）
          */
         private void handleConnectMethod(ChannelHandlerContext ctx, HttpRequest request) throws Exception {
-            if (!authPass && !basicAuthentication(ctx, request)) {
-                logger.error("http proxy auth fail, url[{}].", request.uri());
-                return;
-            } else {
-                logger.info("connect http[{}] request auth passed.", request.uri());
-            }
-
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
             dnsResolver.resolveAsync(hostInfo.getKey()).addListener(f -> {
                         if (f.isSuccess()) {
@@ -215,13 +215,6 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
          * @param request HttpRequest（请求行+请求头）
          */
         private void handleOthersMethod(ChannelHandlerContext ctx, HttpRequest request) throws Exception {
-            if (!authPass && !basicAuthentication(ctx, request)) {
-                logger.error("http proxy auth fail, url[{}].", request.uri());
-                return;
-            } else {
-                logger.info("connect http[{}] request auth passed.", request.uri());
-            }
-
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
             // 修改请求URI为相对路径
             URI uri = new URI(request.uri());

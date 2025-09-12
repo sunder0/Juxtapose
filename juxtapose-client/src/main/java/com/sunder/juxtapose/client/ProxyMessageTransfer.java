@@ -35,6 +35,11 @@ public interface ProxyMessageTransfer {
     void setProxyMessageReceiver(ProxyMessageReceiver receiver);
 
     /**
+     * 释放资源，如果request被关闭
+     */
+    void releaseMessage();
+
+    /**
      * 简单代理消息传递者
      */
     class SimpleProxyMessageTransfer implements ProxyMessageTransfer {
@@ -81,6 +86,15 @@ public interface ProxyMessageTransfer {
             }
         }
 
+        @Override
+        public void releaseMessage() {
+            synchronized (this) {
+                this.receiver = null;
+                while (!cacheQueue.isEmpty()) {
+                    cacheQueue.poll().release();
+                }
+            }
+        }
     }
 
 }

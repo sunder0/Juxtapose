@@ -117,6 +117,6 @@ rules:
   - DOMAIN-SUFFIX,licdn.com,Default
   - DOMAIN-SUFFIX,trkn.us,Default
   - DOMAIN-SUFFIX,cedexis.com,Default
-  - DOMAIN-KEYWORD,bilibili,DIRECT
+  - DOMAIN-KEYWORD,bilibili,Default
   - GEOIP,CN,DIRECT
   - MATCH,Default

@@ -1,17 +1,16 @@
 package com.sunder.juxtapose.client.conf;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.CharUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.lang.Dict;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.setting.yaml.YamlUtil;
 import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 import com.sunder.juxtapose.common.ProxyProtocol;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,8 +22,13 @@ import java.util.Objects;
 public class ProxyServerConfig extends BaseConfig {
     public final static String NAME = "PROXY_SERVER_CONFIG";
 
-    private final String PROXY_SERVER_CONFIG_FILE = "conf/proxy_servers.properties";
-    private final List<ProxyServerNodeConfig> proxyNodeConfigs = new ArrayList<>(); // 存储整个client.properties的配置
+    private final String PROXY_SERVER_CONFIG_FILE = "conf/proxy_servers.yaml";
+
+    private Dict config; // 存储整个proxy_servers.yaml配置
+    // 存储整个所有代理节点的配置
+    private final List<ProxyServerNodeConfig> proxyNodeConfigs = new ArrayList<>();
+    // 存储整个所有代理组的配置
+    private final List<ProxyServerNodeGroupConfig> proxyNodeGroupConfigs = new ArrayList<>();
 
     public ProxyServerConfig(ConfigManager<?> configManager) {
         super(configManager, NAME);
@@ -33,37 +37,27 @@ public class ProxyServerConfig extends BaseConfig {
     @Override
     protected void initInternal() {
         MultiProtocolResource resource = new MultiProtocolResource(PROXY_SERVER_CONFIG_FILE, true);
-        List<String> readLines = FileUtil.readLines(resource.getResource().getUrl(), StandardCharsets.UTF_8);
+        this.config = YamlUtil.loadByPath(resource.getResource().getUrl().getPath());
 
-        Map<String, Object> nodeConfig = new HashMap<>();
-        for (String line : readLines) {
-            if (line == null || StrUtil.startWith(line, "#")) {
-                continue;
-            }
-            line = line.trim();
-            if (StrUtil.isBlank(line)) {
-                proxyNodeConfigs.add(BeanUtil.mapToBean(nodeConfig, ProxyServerNodeConfig.class, true));
-                nodeConfig.clear();
-                continue;
-            }
+        // 转化忽视null和大小写
+        CopyOptions options = new CopyOptions().ignoreNullValue().ignoreCase();
+        // 获取proxy node config
+        List<Map<String, Object>> proxyNodeInfos = config.getBean("proxies");
+        for (Map<String, Object> proxyNodeInfo : proxyNodeInfos) {
+            ProxyServerNodeConfig proxyConfig =
+                    BeanUtil.mapToBean(proxyNodeInfo, ProxyServerNodeConfig.class, true, options);
+            proxyConfig.auth = StrUtil.isNotBlank(proxyConfig.username) && StrUtil.isNotBlank(proxyConfig.password);
 
-            // 记录代理模式
-            if (StrUtil.isSurround(line, CharUtil.BRACKET_START, CharUtil.BRACKET_END)) {
-                nodeConfig.put("protocol", line.substring(1, line.length() - 1).trim());
-                continue;
-            }
-
-            final String[] keyValue = StrUtil.splitToArray(line, '=', 2);
-            // 跳过不符合键值规范的行
-            if (keyValue.length < 2) {
-                continue;
-            }
-
-            nodeConfig.put(keyValue[0].trim(), keyValue[1].trim());
+            proxyNodeConfigs.add(proxyConfig);
         }
 
-        if (!nodeConfig.isEmpty()) {
-            proxyNodeConfigs.add(BeanUtil.mapToBean(nodeConfig, ProxyServerNodeConfig.class, true));
+        // 获取proxy group config
+        List<Map<String, Object>> proxyGroupInfos = config.getBean("proxy-groups");
+        for (Map<String, Object> proxyGroupInfo : proxyGroupInfos) {
+            ProxyServerNodeGroupConfig groupConfig =
+                    BeanUtil.mapToBean(proxyGroupInfo, ProxyServerNodeGroupConfig.class, true, options);
+
+            proxyNodeGroupConfigs.add(groupConfig);
         }
     }
 
@@ -79,11 +73,15 @@ public class ProxyServerConfig extends BaseConfig {
 
     @Override
     public void save() {
-        //todo
+        // todo
     }
 
     public List<ProxyServerNodeConfig> getProxyNodeConfigs() {
         return proxyNodeConfigs;
+    }
+
+    public List<ProxyServerNodeGroupConfig> getProxyNodeGroupConfigs() {
+        return proxyNodeGroupConfigs;
     }
 
     /**
@@ -127,6 +125,38 @@ public class ProxyServerConfig extends BaseConfig {
                     ", protocol=" + protocol +
                     ", host='" + host + '\'' +
                     ", port=" + port +
+                    '}';
+        }
+    }
+
+    /**
+     * 代理组的配置
+     */
+    public static class ProxyServerNodeGroupConfig {
+        public String name; // 代理组名称
+        public List<String> proxies; // 代理组里的节点
+        public String type; // 代理组的类型
+
+        @Override
+        public boolean equals(Object object) {
+            if (object == null || getClass() != object.getClass()) {
+                return false;
+            }
+            ProxyServerNodeGroupConfig that = (ProxyServerNodeGroupConfig) object;
+            return Objects.equals(name, that.name) && Objects.equals(type, that.type);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, type);
+        }
+
+        @Override
+        public String toString() {
+            return "ProxyServerNodeGroupConfig{" +
+                    "name='" + name + '\'' +
+                    ", proxies=" + proxies +
+                    ", type='" + type + '\'' +
                     '}';
         }
     }

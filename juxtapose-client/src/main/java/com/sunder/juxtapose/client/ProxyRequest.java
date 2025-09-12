@@ -9,6 +9,7 @@ import io.netty.channel.ChannelFuture;
 
 import java.net.InetAddress;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author : denglinhai
@@ -28,6 +29,9 @@ public class ProxyRequest {
 
     // 消息传递者
     private final ProxyMessageTransfer transfer = new SimpleProxyMessageTransfer(this);
+
+    // 关闭标记
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
 
     public ProxyRequest(String host, Integer port, Channel clientChannel) {
@@ -78,6 +82,10 @@ public class ProxyRequest {
         return ip;
     }
 
+    public String requestUri() {
+        return host + ":" + port;
+    }
+
     public Channel getClientChannel() {
         return clientChannel;
     }
@@ -121,6 +129,18 @@ public class ProxyRequest {
      */
     public void setProxyMessageReceiver(ProxyMessageReceiver receiver) {
         this.transfer.setProxyMessageReceiver(receiver);
+    }
+
+    /**
+     * 关闭请求，释放资源
+     */
+    public void close() {
+        if (closed.compareAndSet(false, true)) {
+            if (clientChannel.isActive()) {
+                clientChannel.close();
+            }
+            transfer.releaseMessage();
+        }
     }
 
     @Override

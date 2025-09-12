@@ -1,0 +1,14 @@
+proxies:
+  - name: testnode1
+    host: 127.0.0.1
+    port: 2201
+    tls: true
+    protocol: HTTP
+    username: root
+    password: root
+
+proxy-groups:
+  - name: Default
+    proxies:
+      - testnode1
+    type: select
