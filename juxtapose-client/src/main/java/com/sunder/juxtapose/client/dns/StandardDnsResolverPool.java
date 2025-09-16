@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.client.dns;
 
+import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.common.Platform;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
@@ -26,7 +27,8 @@ public class StandardDnsResolverPool {
     private StandardDnsResolverPool(int threads) {
         resolvers = new DnsNameResolver[threads];
 
-        EventLoopGroup eventLoopGroup = Platform.createEventLoopGroup(threads);
+        EventLoopGroup eventLoopGroup = Platform.createEventLoopGroup(threads,
+                ThreadFactoryBuilder.create().setNamePrefix("dns-resolver-").build());
         for (int i = 0; i < threads; i++) {
             resolvers[i] = createDnsNameResolver(eventLoopGroup.next());
         }

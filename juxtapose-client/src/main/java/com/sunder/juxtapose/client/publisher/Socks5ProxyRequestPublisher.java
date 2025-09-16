@@ -183,7 +183,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
 
             logger.info("Socks command request to {}:{}", host, port);
             switch (request.addressType()) {
-                case DOMAIN:
+                case DOMAIN: {
                     dnsResolver.resolveAsync(host).addListener(f -> {
                         if (f.isSuccess()) {
                             InetAddress ip = (InetAddress) f.getNow();
@@ -194,9 +194,11 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                                     request.addressType())).addListener(ChannelFutureListener.CLOSE);
                         }
                     });
-                    break;
+                }
+                break;
+
                 case IPv4:
-                case IPv6:
+                case IPv6: {
                     try {
                         // 1. 验证ip是否合法 2.标准化处理, todo: getByName不能校验格式问题，不能校验是否是ip
                         InetAddress ip = InetAddress.getByName(host);
@@ -206,7 +208,9 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                         ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.ADDRESS_NOT_SUPPORTED,
                                 request.addressType())).addListener(ChannelFutureListener.CLOSE);
                     }
-                    break;
+                }
+                break;
+
                 case UNKNOWN:
                     throw new RuntimeException("Unsupported address type...");
             }
@@ -220,8 +224,10 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                     ProxyRequest pr = new ProxyRequest(host, port, domain, ip, ctx.channel());
                     Socks5ProxyRequestPublisher.this.publishProxyRequest(pr);
 
-                    ctx.pipeline().addLast(new TcpProxyMessageHandler(pr)).remove(SocksRequestHandler.this);
-                    ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, addressType));
+                    ctx.channel().eventLoop().execute(() -> {
+                        ctx.pipeline().addLast(new TcpProxyMessageHandler(pr)).remove(SocksRequestHandler.this);
+                        ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, addressType));
+                    });
                 }
                 break;
 
@@ -267,6 +273,11 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                 ctx.writeAndFlush(new SocksAuthResponse(SocksAuthStatus.FAILURE))
                         .addListener(ChannelFutureListener.CLOSE);
             }
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            logger.error(cause.getMessage(), cause);
         }
     }
 

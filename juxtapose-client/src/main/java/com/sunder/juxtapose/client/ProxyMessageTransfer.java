@@ -90,7 +90,7 @@ public interface ProxyMessageTransfer {
         public void releaseMessage() {
             synchronized (this) {
                 this.receiver = null;
-                while (!cacheQueue.isEmpty()) {
+                while (cacheQueue != null && !cacheQueue.isEmpty()) {
                     cacheQueue.poll().release();
                 }
             }

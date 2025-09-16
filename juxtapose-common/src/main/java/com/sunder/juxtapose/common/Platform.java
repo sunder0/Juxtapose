@@ -20,6 +20,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.internal.PlatformDependent;
 
+import java.util.concurrent.ThreadFactory;
+
 /**
  * @author : denglinhai
  * @date : 00:22 2025/07/11
@@ -123,6 +125,23 @@ public interface Platform {
         }
 
         return new NioEventLoopGroup(nThreads);
+    }
+
+    /**
+     * 创建事件按循环组
+     *
+     * @param nThreads 线程数
+     * @return EventLoopGroup
+     */
+    static EventLoopGroup createEventLoopGroup(int nThreads, ThreadFactory threadFactory) {
+        if (Epoll.isAvailable()) {
+            return new EpollEventLoopGroup(nThreads, threadFactory);
+        }
+        if (KQueue.isAvailable()) {
+            return new KQueueEventLoopGroup(nThreads, threadFactory);
+        }
+
+        return new NioEventLoopGroup(nThreads, threadFactory);
     }
 
 }
