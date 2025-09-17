@@ -5,6 +5,7 @@ import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -43,9 +44,9 @@ public class ProxyRuleConfig extends BaseConfig {
         // todo:...
     }
 
-    @SuppressWarnings("Uncheked")
+    @SuppressWarnings("unchecked")
     public List<String> getRules() {
-        return (List<String>) config.get("rules");
+        return Collections.unmodifiableList((List<String>) config.get("rules"));
     }
 
 }

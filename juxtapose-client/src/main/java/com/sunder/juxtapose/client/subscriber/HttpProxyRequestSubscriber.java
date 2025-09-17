@@ -6,6 +6,9 @@ import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestSubscriber;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
+import com.sunder.juxtapose.client.connection.Connection;
+import com.sunder.juxtapose.client.connection.ConnectionState;
+import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
@@ -32,9 +35,7 @@ import io.netty.handler.codec.http.HttpVersion;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author : denglinhai
@@ -47,8 +48,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
     private Bootstrap bootstrap;
     private final ProxyServerNodeConfig cfg;
     private CertComponent certComponent;
-    private Map<Long, SocketChannel> relayChannel = new ConcurrentHashMap<>(16); // 和中继服务器通信的channel
-    private final Map<Long, ProxyRequest> activeProxy = new ConcurrentHashMap<>(16); // 活跃的代理
+    private DefaultConnectionManager connManager;
 
     public HttpProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
             ProxyServerNodeManager parent) {
@@ -80,6 +80,8 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
         });
         this.bootstrap = bootstrap;
 
+        this.connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
+
         super.initInternal();
     }
 
@@ -98,10 +100,10 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
     @Override
     public void subscribe(ProxyRequest request) {
         try {
+            Connection connection = connManager.createConnection(ProxyProtocol.HTTP, request);
             bootstrap.clone().connect(cfg.host, cfg.port).addListener((ChannelFutureListener) cf -> {
                 if (cf.isSuccess()) {
-                    cf.channel().pipeline().addLast(new HttpRelayMessageHandler(request));
-                    relayChannel.put(request.getSerialId(), (SocketChannel) cf.channel());
+                    cf.channel().pipeline().addLast(new HttpRelayMessageHandler(connection));
 
                     String uri = "http://" + request.getHost() + ":" + request.getPort();
                     HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.CONNECT, uri);
@@ -109,6 +111,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
                         String basicEncode = Base64.getEncoder().encodeToString(
                                 (cfg.username + ":" + cfg.password).getBytes(StandardCharsets.UTF_8));
                         httpRequest.headers().add(HttpHeaderNames.PROXY_AUTHORIZATION, "Basic " + basicEncode);
+                        connection.changeState(ConnectionState.AUTHENTICATING);
                     }
                     cf.channel().writeAndFlush(httpRequest);
 
@@ -125,23 +128,23 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
 
     @Override
     public void receive(Long serialId, ByteBuf message) {
-        SocketChannel socketChannel = relayChannel.get(serialId);
-        socketChannel.writeAndFlush(message, socketChannel.newPromise());
+        Connection connection = connManager.getConnection(serialId.toString());
+        connection.writeMessage(message);
     }
 
     /**
      * 与代理服务器通信， 判断是否建立http通道成功
      */
     private class HttpRelayMessageHandler extends ChannelInboundHandlerAdapter {
-        private final ProxyRequest request;
+        private final Connection connection;
 
-        public HttpRelayMessageHandler(ProxyRequest request) {
-            this.request = request;
+        public HttpRelayMessageHandler(Connection connection) {
+            this.connection = connection;
         }
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            relayChannel.put(request.getSerialId(), (SocketChannel) ctx.channel());
+            connection.bindProxyChannel((SocketChannel) ctx.channel());
             ctx.fireChannelActive();
         }
 
@@ -151,18 +154,20 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
                 HttpResponse response = (HttpResponse) msg;
                 if (response.status() == HttpResponseStatus.UNAUTHORIZED) {
                     logger.error("Http proxy server auth fail.");
-                    ctx.close();
+                    connection.close();
                 }
 
                 if (response.status() == HttpResponseStatus.OK) {
+                    connection.changeState(ConnectionState.AUTHENTICATED);
                     // http通道建好后才允许传递消息
                     logger.info("removing HTTP codecs and relay handler for tunnel mode.");
                     ctx.pipeline().remove(HttpRequestEncoder.class);
                     ctx.pipeline().remove(HttpResponseDecoder.class);
                     ctx.pipeline().remove(HttpRelayMessageHandler.class);
 
-                    ctx.pipeline().addLast(new HttpTunnelMessageHandler(request));
-                    request.setProxyMessageReceiver(HttpProxyRequestSubscriber.this);
+                    ctx.pipeline().addLast(new HttpTunnelMessageHandler(connection));
+                    connection.activeMessageTransfer(HttpProxyRequestSubscriber.this);
+                    // request.setProxyMessageReceiver(HttpProxyRequestSubscriber.this);
                 }
             } else {
                 ctx.fireChannelRead(msg);
@@ -182,17 +187,17 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
      * 建立http通道后直接转发原始数据
      */
     private class HttpTunnelMessageHandler extends ChannelInboundHandlerAdapter {
-        private final ProxyRequest request;
+        private final Connection connection;
 
-        public HttpTunnelMessageHandler(ProxyRequest request) {
-            this.request = request;
+        public HttpTunnelMessageHandler(Connection connection) {
+            this.connection = connection;
         }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ByteBuf) {
-                logger.debug("receive proxy server message...[{}]", request.getSerialId());
-                request.returnMessage((ByteBuf) msg);
+                logger.debug("receive proxy server message...[{}]", connection.getConnectId());
+                connection.readMessage(msg);
             } else {
                 ctx.fireChannelRead(ctx);
             }

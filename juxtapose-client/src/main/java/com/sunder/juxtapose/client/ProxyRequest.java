@@ -86,6 +86,10 @@ public class ProxyRequest {
         return host + ":" + port;
     }
 
+    public boolean isActive() {
+        return clientChannel.isActive();
+    }
+
     public Channel getClientChannel() {
         return clientChannel;
     }

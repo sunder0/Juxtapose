@@ -4,8 +4,11 @@ import com.sunder.juxtapose.client.ProxyMessageReceiver;
 import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestSubscriber;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
+import com.sunder.juxtapose.client.connection.Connection;
+import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.ProxyProtocol;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -15,9 +18,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -30,7 +31,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
     public final static String NAME = "DIRECT_FORWARDING_SUBSCRIBER";
 
     private final Bootstrap bootstrap;
-    private Map<Long, SocketChannel> relayChannel = new ConcurrentHashMap<>();
+    private DefaultConnectionManager connManager;
 
     public DirectForwardingSubscriber(ProxyServerNodeManager parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
@@ -45,8 +46,14 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
     }
 
     @Override
+    protected void initInternal() {
+        connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
+    }
+
+    @Override
     public void subscribe(ProxyRequest request) {
-        bootstrap.clone().handler(new DirectForwardingHandler(request))
+        Connection connection = connManager.createConnection(ProxyProtocol.DIRECT, request);
+        bootstrap.clone().handler(new DirectForwardingHandler(connection))
                 .connect(request.getHost(), request.getPort()).addListener(f -> {
                     if (f.isSuccess()) {
                         logger.info("Direct connect address[{}:{}] successful!", request.getHost(), request.getPort());
@@ -58,9 +65,9 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
 
     @Override
     public void receive(Long serialId, ByteBuf message) {
-        SocketChannel channel;
-        if ((channel = relayChannel.get(serialId)) != null) {
-            channel.writeAndFlush(message);
+        Connection connection;
+        if ((connection = connManager.getConnection(serialId.toString())) != null) {
+            connection.writeMessage(message);
         }
     }
 
@@ -68,16 +75,16 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
      * 直接请求处理器，仅转发，不做任何处理
      */
     private class DirectForwardingHandler extends ChannelInboundHandlerAdapter {
-        private final ProxyRequest request;
+        private final Connection connection;
 
-        public DirectForwardingHandler(ProxyRequest request) {
-            this.request = request;
+        public DirectForwardingHandler(Connection connection) {
+            this.connection = connection;
         }
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            relayChannel.putIfAbsent(request.getSerialId(), (SocketChannel) ctx.channel());
-            request.setProxyMessageReceiver(DirectForwardingSubscriber.this);
+            connection.bindProxyChannel((SocketChannel) ctx.channel());
+            connection.activeMessageTransfer(DirectForwardingSubscriber.this);
 
             ctx.fireChannelActive();
         }
@@ -85,7 +92,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ByteBuf) {
-                request.returnMessage(msg);
+                connection.readMessage(msg);
             } else {
                 ctx.fireChannelRead(msg);
             }
@@ -94,7 +101,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
-            request.close();
+            connection.close();
         }
     }
 

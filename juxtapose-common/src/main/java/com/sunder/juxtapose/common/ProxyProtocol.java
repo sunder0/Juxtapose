@@ -6,5 +6,5 @@ package com.sunder.juxtapose.common;
  *         代理模式
  */
 public enum ProxyProtocol {
-    SOCKS5, HTTP, VMESS, JUXTA
+    SOCKS5, HTTP, VMESS, JUXTA, DIRECT
 }

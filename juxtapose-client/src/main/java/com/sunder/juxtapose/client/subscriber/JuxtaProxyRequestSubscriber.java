@@ -6,7 +6,9 @@ import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestSubscriber;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
-import com.sunder.juxtapose.common.BaseCompositeComponent;
+import com.sunder.juxtapose.client.connection.Connection;
+import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
+import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
@@ -30,16 +32,15 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.util.ReferenceCountUtil;
 
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author : denglinhai
  * @date : 15:38 2023/7/5
  */
-public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxyServerNodeManager>
+public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
         implements ProxyRequestSubscriber, ProxyMessageReceiver {
     public final static String NAME = "JUXTA_PROXY_SERVER";
 
@@ -48,8 +49,8 @@ public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxySer
 
     private final ProxyServerNodeConfig cfg;
     private CertComponent certComponent;
+    private DefaultConnectionManager connManager;
     private SocketChannel relayChannel; // 和中继服务器通信的channel
-    private final Map<Long, ProxyRequest> activeProxy = new ConcurrentHashMap<>(16); // 活跃的代理
 
     public JuxtaProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
             ProxyServerNodeManager parent) {
@@ -62,6 +63,8 @@ public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxySer
 
     @Override
     protected void initInternal() {
+        connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
+
         this.socketChannel = Platform.socketChannelClass();
         this.eventLoopGroup = Platform.createEventLoopGroup(2);
 
@@ -112,19 +115,19 @@ public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxySer
 
     @Override
     public void subscribe(ProxyRequest request) {
-        this.activeProxy.put(request.getSerialId(), request);
+        Connection connection = connManager.createConnection(ProxyProtocol.JUXTA, request);
 
-        request.setProxyMessageReceiver(this);
+        connection.bindProxyChannel(relayChannel);
+        connection.activeMessageTransfer(this);
     }
 
     @Override
     public void receive(Long serialId, ByteBuf message) {
-        ProxyRequest request = activeProxy.get(serialId);
-        ProxyRequestMessage proxyMessage = new ProxyRequestMessage(
-                serialId, request.getHost(), request.getPort(), message);
+        Connection connection = connManager.getConnection(serialId.toString());
 
-        SocketChannel socketChannel = JuxtaProxyRequestSubscriber.this.relayChannel;
-        socketChannel.writeAndFlush(proxyMessage, socketChannel.newPromise());
+        ProxyRequestMessage proxyMessage = new ProxyRequestMessage(
+                serialId, connection.getContent().getProxyHost(), connection.getContent().getProxyPort(), message);
+        connection.writeMessage(proxyMessage);
     }
 
     /**
@@ -150,30 +153,44 @@ public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxySer
             if (msg instanceof ByteBuf) {
                 ByteBuf byteBuf = (ByteBuf) msg;
                 byte serviceId = byteBuf.getByte(byteBuf.readerIndex());
-                if (serviceId == PingMessage.SERVICE_ID) {
 
-                } else if (serviceId == PongMessage.SERVICE_ID) {
-
-                } else if (serviceId == AuthResponseMessage.SERVICE_ID) {
-                    AuthResponseMessage message = new AuthResponseMessage(byteBuf);
-                    if (!message.isPassed()) {
-                        logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.host, cfg.port,
-                                message.getMessage());
-                        ctx.close();
-                        JuxtaProxyRequestSubscriber.this.destroy();
-                    }
-
-                } else if (serviceId == ProxyResponseMessage.SERVICE_ID) {
-                    ProxyResponseMessage message = new ProxyResponseMessage(byteBuf);
-                    logger.info("receive proxy server message...[{}]", message.getSerialId());
-                    if (message.isSuccess()) {
-                        activeProxy.get(message.getSerialId()).returnMessage(message.getContent());
-                    } else {
-                        // ignore....
-                    }
+                switch (serviceId) {
+                    case PingMessage.SERVICE_ID:
+                    case PongMessage.SERVICE_ID:
+                        break;
+                    case AuthResponseMessage.SERVICE_ID:
+                        handleAuthResponseMessage(ctx, new AuthResponseMessage(byteBuf));
+                        break;
+                    case ProxyResponseMessage.SERVICE_ID:
+                        handleProxyResponseMessage(ctx, new ProxyResponseMessage(byteBuf));
+                        break;
                 }
             } else {
                 ctx.fireChannelRead(msg);
+            }
+        }
+
+        private void handleAuthResponseMessage(ChannelHandlerContext ctx, AuthResponseMessage message) {
+            if (!message.isPassed()) {
+                logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.host, cfg.port,
+                        message.getMessage());
+                ctx.close();
+                JuxtaProxyRequestSubscriber.this.destroy();
+            }
+        }
+
+        private void handleProxyResponseMessage(ChannelHandlerContext ctx, ProxyResponseMessage message) {
+            logger.debug("receive proxy server message...[{}]", message.getSerialId());
+            if (message.isSuccess()) {
+                DefaultConnectionManager connManager = JuxtaProxyRequestSubscriber.this.connManager;
+                Connection connection = connManager.getConnection(message.getSerialId().toString());
+                if (connection != null) {
+                    connection.readMessage(message.getContent());
+                } else {
+                    ReferenceCountUtil.release(message.getContent());
+                }
+            } else {
+                ReferenceCountUtil.release(message.getContent());
             }
         }
 

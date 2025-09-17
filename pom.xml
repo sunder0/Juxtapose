@@ -28,12 +28,6 @@
         <logback.version>1.2.3</logback.version>
         <slf4j.version>1.7.21</slf4j.version>
 
-        <spring-boot.version>2.4.0</spring-boot.version>
-        <spring-cloud.version>2020.0.3</spring-cloud.version>
-        <mybatis-plus-spring-boot-starter.version>3.4.1</mybatis-plus-spring-boot-starter.version>
-        <mysql-connector-java.version>5.1.47</mysql-connector-java.version>
-        <druid.version>1.2.19</druid.version>
-
         <slf4j-api.version>1.7.21</slf4j-api.version>
         <junit.version>4.12</junit.version>
         <caffeine.version>2.9.3</caffeine.version>
@@ -46,26 +40,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <!-- Import dependency management from Spring Boot (依赖管理：继承一些默认的依赖，工程需要依赖的jar包的管理，申明其他dependency的时候就不需要version) -->
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter-parent</artifactId>
-                <version>${spring-boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-boot-starter</artifactId>
-                <version>${mybatis-plus-spring-boot-starter.version}</version>
-            </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
@@ -112,11 +86,6 @@
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
             </dependency>
-<!--            <dependency>-->
-<!--                <groupId>com.alibaba</groupId>-->
-<!--                <artifactId>druid-spring-boot-starter</artifactId>-->
-<!--                <version>${druid.version}</version>-->
-<!--            </dependency>-->
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-all</artifactId>

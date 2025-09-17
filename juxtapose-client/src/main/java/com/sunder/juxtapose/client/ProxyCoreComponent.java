@@ -2,6 +2,7 @@ package com.sunder.juxtapose.client;
 
 import cn.hutool.core.lang.Assert;
 import com.sunder.juxtapose.client.conf.ClientConfig;
+import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.client.publisher.HttpProxyRequestPublisher;
 import com.sunder.juxtapose.client.publisher.Socks5ProxyRequestPublisher;
 import com.sunder.juxtapose.client.rule.ProxyRuleEngine;
@@ -20,7 +21,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
     // 简单规则引擎
     private ProxyRuleEngine proxyRuleEngine;
     // 代理节点管理器
-    private ProxyServerNodeManager proxyServerNodeManager;
+    private ProxyServerNodeManager proxyNodeManager;
 
     public ProxyCoreComponent(StandardClient parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
@@ -28,10 +29,12 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
 
     @Override
     protected void initInternal() {
-        // 代理规则引起
+        // 连接管理器
+        addModule(new DefaultConnectionManager(this));
+        // 代理规则引擎
         addChildComponent(proxyRuleEngine = new ProxyRuleEngine(this));
         // 代理节点管理器
-        addChildComponent(proxyServerNodeManager = new ProxyServerNodeManager(this));
+        addChildComponent(proxyNodeManager = new ProxyServerNodeManager(this));
 
         // 添加socks5本地代理
         addChildComponent(new Socks5ProxyRequestPublisher(this));
@@ -70,9 +73,9 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
         ProxyRequestSubscriber subscriber;
         if (proxyMode == ProxyMode.GLOBAL) {
             // todo: 默认全局代理走url-test组，会选择一个最低耗时的节点
-            subscriber = proxyServerNodeManager.proxyNode("Default", request);
+            subscriber = proxyNodeManager.proxyNode("Default", request);
         } else if (proxyMode == ProxyMode.DIRECT) {
-            subscriber = proxyServerNodeManager.directNode(request);
+            subscriber = proxyNodeManager.directNode(request);
         } else if (proxyMode == ProxyMode.RULE) {
             RuleResult result = proxyRuleEngine.match(request.getDomain(), request.getIp(), request.getPort());
             switch (result.action) {
@@ -81,11 +84,11 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
                     request.close();
                     return;
                 case DIRECT:
-                    subscriber = proxyServerNodeManager.directNode(request);
+                    subscriber = proxyNodeManager.directNode(request);
                     break;
                 default:
                     String proxyGroup = result.proxyGroup;
-                    subscriber = proxyServerNodeManager.proxyNode(proxyGroup, request);
+                    subscriber = proxyNodeManager.proxyNode(proxyGroup, request);
                     break;
             }
         } else {
@@ -102,7 +105,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
      * @param subscriber
      */
     public void registerProxyRequestSubscriber(ProxyRequestSubscriber subscriber) {
-        proxyServerNodeManager.registerProxyRequestSubscriber(subscriber);
+        proxyNodeManager.registerProxyRequestSubscriber(subscriber);
     }
 
     /**
@@ -111,7 +114,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
      * @param subscriber
      */
     public void removeProxyRequestSubscriber(ProxyRequestSubscriber subscriber) {
-        proxyServerNodeManager.removeProxyRequestSubscriber(subscriber);
+        proxyNodeManager.removeProxyRequestSubscriber(subscriber);
     }
 
 }
