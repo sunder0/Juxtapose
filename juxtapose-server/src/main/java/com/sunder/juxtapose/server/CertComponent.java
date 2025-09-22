@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.server;
 
+import cn.hutool.core.io.resource.FileResource;
 import cn.hutool.core.io.resource.NoResourceException;
-import cn.hutool.core.io.resource.UrlResource;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
@@ -171,8 +171,8 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
                 return;
             }
 
-            UrlResource urlResource = (UrlResource) resource.getResource();
-            RandomAccessFile raf = new RandomAccessFile(urlResource.getFile().getAbsolutePath(), "r");
+            FileResource fileResource = (FileResource) resource.getResource();
+            RandomAccessFile raf = new RandomAccessFile(fileResource.getFile().getAbsolutePath(), "r");
             long fileLength = raf.length();
 
             // 1. 创建并发送响应头（不立即刷新）
