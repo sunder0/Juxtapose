@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
  * @author : denglinhai
  * @date : 18:56 2025/07/29
  */
-public final class StandardClient extends ToplevelComponent {
+public final class StandardClient extends ToplevelComponent implements ClientOperate {
     private final static String JUXTAPOSE_ENV = "JUXTAPOSE_HOME";
     private final static Logger logger = LoggerFactory.getLogger(StandardClient.class);
 
@@ -23,6 +23,8 @@ public final class StandardClient extends ToplevelComponent {
 
     @Override
     protected void initInternal() {
+        ProxyContext.CONTEXT.registerClientOperate(this);
+
         DefaultConfigManager<StandardClient> configManager = new DefaultConfigManager<>(this);
         addModule(configManager);
 
@@ -67,4 +69,25 @@ public final class StandardClient extends ToplevelComponent {
 
     // todo: log mange
 
+
+    @Override
+    public void enableSystemProxy() {
+
+    }
+
+    @Override
+    public void disableSystemProxy() {
+
+    }
+
+    @Override
+    public void restart() {
+
+    }
+
+    @Override
+    public void close() {
+        destroy();
+        System.exit(0);
+    }
 }

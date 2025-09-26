@@ -1,9 +1,7 @@
 package com.sunder.juxtapose.client.system;
 
-import com.sunder.juxtapose.client.conf.ClientConfig;
-import com.sunder.juxtapose.client.publisher.HttpProxyRequestPublisher;
-import com.sunder.juxtapose.common.BaseComponent;
-import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -15,29 +13,8 @@ import java.io.InputStreamReader;
  *         主要用于window的代理设置（只支持HTTP）, 设置注册表，效果见（win10）：设置 -> 网络和Internet -> 代理 -> 手动设置代理
  *         参照：https://myth.cx/p/windows-proxy/
  */
-public class WindowsSystemProxySetting extends BaseComponent<HttpProxyRequestPublisher> {
-    public final static String NAME = "WINDOWS_SYSTEM_PROXY_SETTING";
-
-    public WindowsSystemProxySetting(HttpProxyRequestPublisher parent) {
-        super(NAME, parent, ComponentLifecycleListener.INSTANCE);
-    }
-
-    @Override
-    protected void startInternal() {
-        ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
-        enableSystemProxy(cfg.getProxyHost(), cfg.getHttpPort(), cfg.getProxyOverride());
-
-        // 设置关闭清理钩子
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            logger.info("close juxtapose system proxy ...");
-            disableSystemProxy();
-        }));
-    }
-
-    @Override
-    protected void destroyInternal() {
-        disableSystemProxy();
-    }
+public class WindowsSystemProxySetting implements SystemProxySetting {
+    private final Logger logger = LoggerFactory.getLogger(WindowsSystemProxySetting.class);
 
     /**
      * 开启系统本地代理
@@ -46,7 +23,8 @@ public class WindowsSystemProxySetting extends BaseComponent<HttpProxyRequestPub
      * @param proxyPort 代理本地的端口
      * @param ignoreOverride 忽视的代理地址， eg: localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*
      */
-    private void enableSystemProxy(String proxyHost, int proxyPort, String ignoreOverride) {
+    @Override
+    public void enableSystemProxy(String proxyHost, int proxyPort, String ignoreOverride) {
         try {
             // 启用代理
             String enableCmd
@@ -74,6 +52,7 @@ public class WindowsSystemProxySetting extends BaseComponent<HttpProxyRequestPub
     /**
      * 禁用系统代理
      */
+    @Override
     public void disableSystemProxy() {
         try {
             // 禁用代理

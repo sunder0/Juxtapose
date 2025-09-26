@@ -2,14 +2,19 @@ package com.sunder.juxtapose.client.conf;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.io.resource.FileResource;
 import cn.hutool.core.lang.Dict;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.setting.yaml.YamlUtil;
 import com.sunder.juxtapose.common.BaseConfig;
+import com.sunder.juxtapose.common.ConfigException;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 import com.sunder.juxtapose.common.ProxyProtocol;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +27,7 @@ import java.util.Objects;
 public class ProxyServerConfig extends BaseConfig {
     public final static String NAME = "PROXY_SERVER_CONFIG";
 
-    private final String PROXY_SERVER_CONFIG_FILE = "conf/proxy_servers.yaml";
+    private final String PROXY_SERVER_CONFIG_FILE = "conf/proxy_servers1.yaml";
 
     private Dict config; // 存储整个proxy_servers.yaml配置
     // 存储整个所有代理节点的配置
@@ -38,12 +43,72 @@ public class ProxyServerConfig extends BaseConfig {
     protected void initInternal() {
         MultiProtocolResource resource = new MultiProtocolResource(PROXY_SERVER_CONFIG_FILE, true);
         this.config = YamlUtil.loadByPath(resource.getResource().getUrl().getPath());
+        initProxyData();
+    }
 
+    @Override
+    public boolean canSave() {
+        return true;
+    }
+
+    @Override
+    public boolean autoReload() {
+        return true;
+    }
+
+    @Override
+    public void save() {
+        MultiProtocolResource resource = new MultiProtocolResource(PROXY_SERVER_CONFIG_FILE, true);
+        try {
+            YamlUtil.dump(config, new FileWriter(resource.getResource().getUrl().getPath()));
+        } catch (Exception ex) {
+            throw new ConfigException("save proxy node config error.", ex);
+        }
+    }
+
+    /**
+     * 从yaml文件中加载
+     *
+     * @param yaml yaml文件输入流
+     */
+    public void loadYamlStream(InputStream yaml) {
+        this.config.clear();
+        this.proxyNodeConfigs.clear();
+        this.proxyNodeGroupConfigs.clear();
+        this.config = YamlUtil.load(yaml, Dict.class);
+        initProxyData();
+        save();
+        try {
+            yaml.close();
+        } catch (Exception ignore) {
+        }
+    }
+
+    public List<ProxyServerNodeConfig> getProxyNodeConfigs() {
+        return proxyNodeConfigs;
+    }
+
+    public List<ProxyServerNodeGroupConfig> getProxyNodeGroupConfigs() {
+        return proxyNodeGroupConfigs;
+    }
+
+    public File getConfigDirectory() {
+        MultiProtocolResource resource = new MultiProtocolResource(PROXY_SERVER_CONFIG_FILE, true);
+        return ((FileResource) resource.getResource()).getFile();
+    }
+
+    /**
+     * 初始化代理数据
+     */
+    private void initProxyData() {
         // 转化忽视null和大小写
         CopyOptions options = new CopyOptions().ignoreNullValue().ignoreCase();
         // 获取proxy node config
         List<Map<String, Object>> proxyNodeInfos = config.getBean("proxies");
         for (Map<String, Object> proxyNodeInfo : proxyNodeInfos) {
+            // 兼容clashwindows的yaml格式，type是小写
+            proxyNodeInfo.put("type", proxyNodeInfo.get("type").toString().toUpperCase());
+
             ProxyServerNodeConfig proxyConfig =
                     BeanUtil.mapToBean(proxyNodeInfo, ProxyServerNodeConfig.class, true, options);
             proxyConfig.auth = StrUtil.isNotBlank(proxyConfig.username) && StrUtil.isNotBlank(proxyConfig.password);
@@ -61,29 +126,6 @@ public class ProxyServerConfig extends BaseConfig {
         }
     }
 
-    @Override
-    public boolean canSave() {
-        return true;
-    }
-
-    @Override
-    public boolean autoReload() {
-        return true;
-    }
-
-    @Override
-    public void save() {
-        // todo
-    }
-
-    public List<ProxyServerNodeConfig> getProxyNodeConfigs() {
-        return proxyNodeConfigs;
-    }
-
-    public List<ProxyServerNodeGroupConfig> getProxyNodeGroupConfigs() {
-        return proxyNodeGroupConfigs;
-    }
-
     /**
      * 代理服务节点配置
      */
@@ -95,8 +137,8 @@ public class ProxyServerConfig extends BaseConfig {
         public String username;
         public String password;
 
-        public ProxyProtocol protocol;
-        public String host;
+        public ProxyProtocol type;
+        public String server;
         public Integer port;
 
         @Override
@@ -105,13 +147,13 @@ public class ProxyServerConfig extends BaseConfig {
                 return false;
             }
             ProxyServerNodeConfig that = (ProxyServerNodeConfig) object;
-            return Objects.equals(protocol, that.protocol) && Objects.equals(host, that.host)
+            return Objects.equals(type, that.type) && Objects.equals(server, that.server)
                     && Objects.equals(port, that.port);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(protocol, host, port);
+            return Objects.hash(type, server, port);
         }
 
         @Override
@@ -122,8 +164,8 @@ public class ProxyServerConfig extends BaseConfig {
                     ", auth=" + auth +
                     ", username='" + username + '\'' +
                     ", password='" + password + '\'' +
-                    ", protocol=" + protocol +
-                    ", host='" + host + '\'' +
+                    ", protocol=" + type +
+                    ", host='" + server + '\'' +
                     ", port=" + port +
                     '}';
         }

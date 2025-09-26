@@ -13,7 +13,10 @@ import com.sunder.juxtapose.common.ProxyProtocol;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author : denglinhai
@@ -21,6 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComponent> {
     public final static String NAME = "PROXY_SERVER_NODE_MANAGER";
+
+    private final AtomicBoolean updProxy = new AtomicBoolean(false);
+    private final Queue<ProxyRequest> updCacheQueue = new ConcurrentLinkedQueue<>();
 
     private ProxyServerConfig proxyServerCfg;
     // 证书信息
@@ -48,21 +54,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
 
         // 添加代理订阅
         addChildComponent(new DirectForwardingSubscriber(this));
-        for (ProxyServerNodeConfig node : proxyServerCfg.getProxyNodeConfigs()) {
-            if (node.protocol == ProxyProtocol.JUXTA) {
-                addChildComponent(new JuxtaProxyRequestSubscriber(node, certComponent, this));
-            } else if (node.protocol == ProxyProtocol.HTTP) {
-                addChildComponent(new HttpProxyRequestSubscriber(node, certComponent, this));
-            }
-        }
-
-        // 代理节点分组
-        for (ProxyServerNodeGroupConfig group : proxyServerCfg.getProxyNodeGroupConfigs()) {
-            proxyGroups.computeIfAbsent(group.name, k -> new ConcurrentHashMap<>(64));
-            for (String proxyNode : group.proxies) {
-                proxyGroups.get(group.name).put(proxyNode, proxyNodes.get(proxyNode));
-            }
-        }
+        loadProxySubscribers();
 
         super.initInternal();
     }
@@ -86,6 +78,11 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
      * @param proxyGroup 代理组
      */
     public ProxyRequestSubscriber proxyNode(String proxyGroup, ProxyRequest request) {
+        // 在更新订阅期间，暂时不可用，临时，todo：可以添加一个缓存队列用于处理更新代理
+        if (updProxy.get()) {
+            return directNode(request);
+        }
+
         if (!proxyGroups.containsKey(proxyGroup)) {
             throw new RuntimeException("Proxy group is not exist.");
         }
@@ -133,4 +130,37 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         return proxyNodes.remove(proxyNode.getName());
     }
 
+    /**
+     * 清空代理订阅节点
+     */
+    public void truncateAndLoadProxySubscribers() {
+        if (updProxy.compareAndSet(false, true)) {
+            proxyNodes.clear();
+            proxyGroups.clear();
+
+            loadProxySubscribers();
+            updProxy.set(false);
+        }
+    }
+
+    /**
+     * 加载订阅节点
+     */
+    private void loadProxySubscribers() {
+        for (ProxyServerNodeConfig node : proxyServerCfg.getProxyNodeConfigs()) {
+            if (node.type == ProxyProtocol.JUXTA) {
+                addChildComponent(new JuxtaProxyRequestSubscriber(node, certComponent, this));
+            } else if (node.type == ProxyProtocol.HTTP) {
+                addChildComponent(new HttpProxyRequestSubscriber(node, certComponent, this));
+            }
+        }
+
+        // 代理节点分组
+        for (ProxyServerNodeGroupConfig group : proxyServerCfg.getProxyNodeGroupConfigs()) {
+            proxyGroups.computeIfAbsent(group.name, k -> new ConcurrentHashMap<>(64));
+            for (String proxyNode : group.proxies) {
+                proxyGroups.get(group.name).put(proxyNode, proxyNodes.get(proxyNode));
+            }
+        }
+    }
 }

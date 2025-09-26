@@ -1,10 +1,12 @@
 package com.sunder.juxtapose.client.conf;
 
+import cn.hutool.core.io.resource.FileResource;
 import cn.hutool.setting.yaml.YamlUtil;
 import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 
+import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +49,11 @@ public class ProxyRuleConfig extends BaseConfig {
     @SuppressWarnings("unchecked")
     public List<String> getRules() {
         return Collections.unmodifiableList((List<String>) config.get("rules"));
+    }
+
+    public File getConfigDirectory() {
+        MultiProtocolResource resource = new MultiProtocolResource(PROXY_RULE_CONFIG_FILE, true);
+        return ((FileResource) resource.getResource()).getFile();
     }
 
 }

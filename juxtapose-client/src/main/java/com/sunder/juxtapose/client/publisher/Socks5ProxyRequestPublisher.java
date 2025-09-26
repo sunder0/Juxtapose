@@ -6,7 +6,6 @@ import com.sunder.juxtapose.client.ProxyRequestPublisher;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.dns.StandardDnsResolverPool;
 import com.sunder.juxtapose.client.handler.TcpProxyMessageHandler;
-import com.sunder.juxtapose.client.system.MacOSSystemProxySetting;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
@@ -71,10 +70,6 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
         if (this.auth) {
             this.userName = cfg.getSocks5User();
             this.password = cfg.getSocks5Pwd();
-        }
-
-        if (Platform.isMac()) {
-            addChildComponent(new MacOSSystemProxySetting(this));
         }
 
         this.serverSocketChannel = Platform.serverSocketChannelClass();

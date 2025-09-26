@@ -58,6 +58,11 @@ public class ClientConfig extends BaseConfig {
         return config.getStr("logging.level", "info");
     }
 
+    public void setLogLevel(String logLevel) {
+        config.set("logging.level", logLevel.toUpperCase());
+        save();
+    }
+
     public String getGeoIPPath() {
         return config.getStr("geoip.mmdbpath", "${JUXTAPOSE_HOME}/conf/Country.mmdb");
     }
@@ -70,8 +75,18 @@ public class ClientConfig extends BaseConfig {
         return ProxyMode.valueOf(config.getStr("proxy.mode", "RULE"));
     }
 
+    public void setProxyMode(String proxyMode) {
+        config.set("proxy.mode", proxyMode.toUpperCase());
+        save();
+    }
+
     public boolean getProxyEnable() {
-        return config.getBool("proxy.enable", true);
+        return config.getBool("proxy.enable", false);
+    }
+
+    public void setProxyEnable(boolean enable) {
+        config.set("proxy.enable", enable + "");
+        save();
     }
 
     public String getProxyHost() {
@@ -93,6 +108,11 @@ public class ClientConfig extends BaseConfig {
 
     public int getSocks5Port() {
         return config.getInt("socks.port", SOCKS_GROUP, 1200);
+    }
+
+    public void setSocks5Port(String socks5Port) {
+        config.setByGroup("socks.port", SOCKS_GROUP, socks5Port);
+        save();
     }
 
     public boolean getSocks5Auth() {
@@ -133,6 +153,11 @@ public class ClientConfig extends BaseConfig {
 
     public int getHttpPort() {
         return config.getInt("http.port", HTTP_GROUP, 1201);
+    }
+
+    public void setHttpPort(String httpPort) {
+        config.setByGroup("http.port", HTTP_GROUP, httpPort);
+        save();
     }
 
     public boolean getHttpAuth() {

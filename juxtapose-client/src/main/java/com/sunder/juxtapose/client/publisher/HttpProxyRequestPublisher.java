@@ -6,7 +6,6 @@ import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.client.ProxyRequestPublisher;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.dns.StandardDnsResolverPool;
-import com.sunder.juxtapose.client.system.WindowsSystemProxySetting;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
@@ -80,9 +79,6 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
         if (this.auth) {
             this.userName = cfg.getHttpUser();
             this.password = cfg.getHttpPwd();
-        }
-        if (Platform.isWindows()) {
-            addChildComponent(new WindowsSystemProxySetting(this));
         }
 
         this.serverSocketChannel = Platform.serverSocketChannelClass();

@@ -13,9 +13,21 @@ import org.slf4j.LoggerFactory;
 public class LogModule<T extends Component<?>> extends BaseModule<T> {
     public final static String NAME = "LOG_MODULE";
 
+    private final String CURRENT_LOG_PATH = "logs/juxtapose.log";
+    private final String LOG_PATH = "logs";
+    private final String SERVICE_NAME = "juxtapose";
+
     public LogModule(String logbackXml, String level, T belongComponent) {
         super(NAME, belongComponent);
         initializeLogSystem(logbackXml, level);
+    }
+
+    /**
+     * @return 获取当前日志路径
+     */
+    public String getCurrentLogPath() {
+        MultiProtocolResource resource = new MultiProtocolResource(CURRENT_LOG_PATH, true);
+        return resource.getResource().getUrl().getPath();
     }
 
     /**

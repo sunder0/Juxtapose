@@ -7,8 +7,11 @@ import com.sunder.juxtapose.client.publisher.HttpProxyRequestPublisher;
 import com.sunder.juxtapose.client.publisher.Socks5ProxyRequestPublisher;
 import com.sunder.juxtapose.client.rule.ProxyRuleEngine;
 import com.sunder.juxtapose.client.rule.ProxyRuleEngine.RuleResult;
+import com.sunder.juxtapose.client.system.SystemProxySettingAdapter;
+import com.sunder.juxtapose.client.ui.MainUIComponent;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyMode;
 
 /**
@@ -29,6 +32,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
 
     @Override
     protected void initInternal() {
+        ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
         // 连接管理器
         addModule(new DefaultConnectionManager(this));
         // 代理规则引擎
@@ -40,6 +44,14 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
         addChildComponent(new Socks5ProxyRequestPublisher(this));
         // 添加http本地代理
         addChildComponent(new HttpProxyRequestPublisher(this));
+
+        if (cfg.getProxyEnable()) {
+            addChildComponent(new SystemProxySettingAdapter(this));
+        }
+
+        if (Platform.isMac() || Platform.isWindows()) {
+            addChildComponent(new MainUIComponent(this, parent));
+        }
 
         super.initInternal();
     }

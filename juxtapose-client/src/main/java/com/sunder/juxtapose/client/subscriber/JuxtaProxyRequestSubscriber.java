@@ -85,18 +85,18 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                     ChannelPipeline pipeline = socketChannel.pipeline();
                     if (cfg.tls) {
                         pipeline.addLast(
-                                certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.host, cfg.port));
+                                certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
                     }
                     pipeline.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                             Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                     pipeline.addLast(new ProxyRelayMessageHandler());
                     pipeline.addLast(RelayMessageWriteEncoder.INSTANCE);
                 }
-            }).connect(cfg.host, cfg.port).await().addListener(f -> {
+            }).connect(cfg.server, cfg.port).await().addListener(f -> {
                 if (f.isSuccess()) {
-                    logger.info("Connect Juxta proxy relay server[{}:{}] successful!", cfg.host, cfg.port);
+                    logger.info("Connect Juxta proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
                 } else {
-                    logger.info("Connect Juxta proxy relay server[{}:{}] failed!", cfg.host, cfg.port, f.cause());
+                    logger.info("Connect Juxta proxy relay server[{}:{}] failed!", cfg.server, cfg.port, f.cause());
                 }
             });
         } catch (Exception ex) {
@@ -172,7 +172,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
         private void handleAuthResponseMessage(ChannelHandlerContext ctx, AuthResponseMessage message) {
             if (!message.isPassed()) {
-                logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.host, cfg.port,
+                logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.server, cfg.port,
                         message.getMessage());
                 ctx.close();
                 JuxtaProxyRequestSubscriber.this.destroy();
@@ -205,7 +205,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
     @Override
     public String proxyUri() {
-        return cfg.host + ":" + cfg.port;
+        return cfg.server + ":" + cfg.port;
     }
 
 

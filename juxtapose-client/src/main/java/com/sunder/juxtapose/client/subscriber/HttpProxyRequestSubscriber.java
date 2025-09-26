@@ -72,7 +72,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
                 ChannelPipeline pipeline = socketChannel.pipeline();
                 if (cfg.tls) {
                     pipeline.addLast(
-                            certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.host, cfg.port));
+                            certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
                 }
                 pipeline.addLast(new HttpRequestEncoder());
                 pipeline.addLast(new HttpResponseDecoder());
@@ -101,7 +101,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
     public void subscribe(ProxyRequest request) {
         try {
             Connection connection = connManager.createConnection(ProxyProtocol.HTTP, request);
-            bootstrap.clone().connect(cfg.host, cfg.port).addListener((ChannelFutureListener) cf -> {
+            bootstrap.clone().connect(cfg.server, cfg.port).addListener((ChannelFutureListener) cf -> {
                 if (cf.isSuccess()) {
                     cf.channel().pipeline().addLast(new HttpRelayMessageHandler(connection));
 
@@ -115,9 +115,9 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
                     }
                     cf.channel().writeAndFlush(httpRequest);
 
-                    logger.info("Connect Http proxy relay server[{}:{}] successful!", cfg.host, cfg.port);
+                    logger.info("Connect Http proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
                 } else {
-                    logger.info("Connect Http proxy relay server[{}:{}] failed!", cfg.host, cfg.port, cf.cause());
+                    logger.info("Connect Http proxy relay server[{}:{}] failed!", cfg.server, cfg.port, cf.cause());
                 }
             }).await();
         } catch (Exception ex) {
@@ -207,7 +207,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
 
     @Override
     public String proxyUri() {
-        return cfg.host + ":" + cfg.port;
+        return cfg.server + ":" + cfg.port;
     }
 
     @Override

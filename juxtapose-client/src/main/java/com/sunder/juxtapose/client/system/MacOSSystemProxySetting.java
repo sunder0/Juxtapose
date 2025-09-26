@@ -1,9 +1,7 @@
 package com.sunder.juxtapose.client.system;
 
-import com.sunder.juxtapose.client.conf.ClientConfig;
-import com.sunder.juxtapose.client.publisher.Socks5ProxyRequestPublisher;
-import com.sunder.juxtapose.common.BaseComponent;
-import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -17,31 +15,9 @@ import java.util.stream.Collectors;
  * @date : 17:31 2025/09/08
  *         设置mac系统代理，目前只设置socks5
  */
-public class MacOSSystemProxySetting extends BaseComponent<Socks5ProxyRequestPublisher> {
-    public final static String NAME = "MACOS_SYSTEM_PROXY_SETTING";
-
+public class MacOSSystemProxySetting implements SystemProxySetting {
+    private final Logger logger = LoggerFactory.getLogger(MacOSSystemProxySetting.class);
     private final String activeService = "Wi-Fi"; // 默认网络服务使用wifi，目前暂不支持有线连接，后续添加
-
-    public MacOSSystemProxySetting(Socks5ProxyRequestPublisher parent) {
-        super(NAME, parent, ComponentLifecycleListener.INSTANCE);
-    }
-
-    @Override
-    protected void startInternal() {
-        ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
-        enableSystemProxy(cfg.getProxyHost(), cfg.getSocks5Port(), cfg.getProxyOverride());
-
-        // 设置关闭清理钩子
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            logger.info("close juxtapose system proxy ...");
-            disableSystemProxy();
-        }));
-    }
-
-    @Override
-    protected void destroyInternal() {
-        disableSystemProxy();
-    }
 
     /**
      * 开启系统本地代理
@@ -50,7 +26,8 @@ public class MacOSSystemProxySetting extends BaseComponent<Socks5ProxyRequestPub
      * @param proxyPort 代理本地的端口
      * @param ignoreOverride 忽视的代理地址， eg: localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*
      */
-    private void enableSystemProxy(String proxyHost, int proxyPort, String ignoreOverride) {
+    @Override
+    public void enableSystemProxy(String proxyHost, int proxyPort, String ignoreOverride) {
         try {
             // 启用代理
             String[] services = getNetworkServices();
@@ -80,6 +57,7 @@ public class MacOSSystemProxySetting extends BaseComponent<Socks5ProxyRequestPub
     /**
      * 禁用系统代理
      */
+    @Override
     public void disableSystemProxy() {
         try {
             // 禁用代理
