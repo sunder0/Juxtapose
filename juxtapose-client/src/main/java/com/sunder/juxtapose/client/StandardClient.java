@@ -23,7 +23,7 @@ public final class StandardClient extends ToplevelComponent implements ClientOpe
 
     @Override
     protected void initInternal() {
-        ProxyContext.CONTEXT.registerClientOperate(this);
+        SystemAppContext.CONTEXT.registerClientOperate(this);
 
         DefaultConfigManager<StandardClient> configManager = new DefaultConfigManager<>(this);
         addModule(configManager);

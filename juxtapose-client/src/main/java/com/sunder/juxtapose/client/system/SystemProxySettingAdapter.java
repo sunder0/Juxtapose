@@ -1,6 +1,6 @@
 package com.sunder.juxtapose.client.system;
 
-import com.sunder.juxtapose.client.ProxyContext;
+import com.sunder.juxtapose.client.SystemAppContext;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.common.BaseComponent;
@@ -14,16 +14,20 @@ import com.sunder.juxtapose.common.Platform;
 public class SystemProxySettingAdapter extends BaseComponent<ProxyCoreComponent> {
     public final static String NAME = "SYSTEM_PROXY_SETTING";
 
+    private ClientConfig cfg;
     private SystemProxySetting systemProxySetting;
 
     public SystemProxySettingAdapter(ProxyCoreComponent parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
-        ProxyContext.CONTEXT.registerSystemProxySetting(this);
+        SystemAppContext.CONTEXT.registerSystemProxySetting(this);
     }
 
     @Override
     protected void startInternal() {
-        enableSystemProxy();
+        cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
+        if (cfg.getProxyEnable()) {
+            enableSystemProxy();
+        }
 
         // 设置关闭清理钩子
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -36,12 +40,15 @@ public class SystemProxySettingAdapter extends BaseComponent<ProxyCoreComponent>
      * 开启系统本地代理
      */
     public void enableSystemProxy() {
-        ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
         if (Platform.isWindows()) {
-            systemProxySetting = new WindowsSystemProxySetting();
+            if (systemProxySetting == null) {
+                systemProxySetting = new WindowsSystemProxySetting();
+            }
             systemProxySetting.enableSystemProxy(cfg.getProxyHost(), cfg.getHttpPort(), cfg.getProxyOverride());
         } else if (Platform.isMac()) {
-            systemProxySetting = new MacOSSystemProxySetting();
+            if (systemProxySetting == null) {
+                systemProxySetting = new MacOSSystemProxySetting();
+            }
             systemProxySetting.enableSystemProxy(cfg.getProxyHost(), cfg.getSocks5Port(), cfg.getProxyOverride());
         }
     }
@@ -50,7 +57,9 @@ public class SystemProxySettingAdapter extends BaseComponent<ProxyCoreComponent>
      * 禁用系统代理
      */
     public void disableSystemProxy() {
-        systemProxySetting.disableSystemProxy();
+        if (systemProxySetting != null) {
+            systemProxySetting.disableSystemProxy();
+        }
     }
 
 }

@@ -7,6 +7,7 @@ import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
 import com.sunder.juxtapose.client.subscriber.HttpProxyRequestSubscriber;
 import com.sunder.juxtapose.client.subscriber.JuxtaProxyRequestSubscriber;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
+import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.ProxyProtocol;
 
@@ -31,7 +32,8 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     private ProxyServerConfig proxyServerCfg;
     // 证书信息
     private CertComponent certComponent;
-
+    // select 类型的组，每个profile只允许有一个
+    private ProxyServerNodeGroupConfig selectGroup;
     // 直连服务节点, NAME -> ProxyRequestSubscriber
     private final Map<String, ProxyRequestSubscriber> directNodes = new ConcurrentHashMap<>(16);
     // 代理服务节点, NAME -> ProxyRequestSubscriber
@@ -55,6 +57,8 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         // 添加代理订阅
         addChildComponent(new DirectForwardingSubscriber(this));
         loadProxySubscribers();
+
+        SystemAppContext.CONTEXT.registerProxyNodeManager(this);
 
         super.initInternal();
     }
@@ -81,6 +85,14 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         // 在更新订阅期间，暂时不可用，临时，todo：可以添加一个缓存队列用于处理更新代理
         if (updProxy.get()) {
             return directNode(request);
+        }
+
+        // 有select组且用户选了select组的节点
+        Map<String, String> selectNodes = SystemAppContext.CONTEXT.getSelectNodes();
+        String select;
+        if (selectGroup != null && (select = selectNodes.get(selectGroup.name)) != null) {
+            System.out.println(11);
+            return proxyNodes.get(select);
         }
 
         if (!proxyGroups.containsKey(proxyGroup)) {
@@ -156,11 +168,23 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         }
 
         // 代理节点分组
+        checkProfileGroup();
         for (ProxyServerNodeGroupConfig group : proxyServerCfg.getProxyNodeGroupConfigs()) {
+            if (group.type.equals("select")) {
+                selectGroup = group;
+            }
+
             proxyGroups.computeIfAbsent(group.name, k -> new ConcurrentHashMap<>(64));
             for (String proxyNode : group.proxies) {
                 proxyGroups.get(group.name).put(proxyNode, proxyNodes.get(proxyNode));
             }
+        }
+    }
+
+    private void checkProfileGroup() {
+        long count = proxyServerCfg.getProxyNodeGroupConfigs().stream().filter(e -> e.type.equals("select")).count();
+        if (count > 1) {
+            throw new ComponentException("There can only be one select group type.");
         }
     }
 }

@@ -6,6 +6,7 @@ import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
+import static com.sunder.juxtapose.client.ui.UIUtils.createMinimizeAlert;
 import com.sunder.juxtapose.client.ui.def.RateDisplay;
 import com.sunder.juxtapose.client.ui.panel.GeneralPanel;
 import com.sunder.juxtapose.client.ui.panel.LogsPanel;
@@ -24,8 +25,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
-import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -77,7 +78,7 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
         ProxyRuleConfig prcfg = configManager.getConfigByName(ProxyRuleConfig.NAME, ProxyRuleConfig.class);
         addModule(new ProxiesPanel(this, pscfg, prcfg));
 
-        LogModule logModule = getModuleByName(LogModule.NAME, true, LogModule.class);
+        LogModule<?> logModule = getModuleByName(LogModule.NAME, true, LogModule.class);
         addModule(new LogsPanel(this, ccfg, logModule));
     }
 
@@ -134,20 +135,19 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             Image icon = new Image(resource.getResource().getStream());
             primaryStage.getIcons().add(icon);
 
+            MinimizedSystemTray systemTray = new MinimizedSystemTray(primaryStage);
+            systemTray.setupSystemTray();
+
             primaryStage.setOnCloseRequest(event -> {
                 // 阻止默认关闭行为
                 event.consume();
 
-                // 显示确认对话框
-                Alert alert = new Alert(AlertType.CONFIRMATION);
-                alert.setTitle("确认关闭");
-                alert.setHeaderText(null);
-
+                Alert alert = createMinimizeAlert("Confirm closing the client?", null);
                 alert.showAndWait().ifPresent(response -> {
                     if (response == ButtonType.OK) {
-                        // 用户确认关闭
-                        primaryStage.close();
-                        System.exit(0);
+                        boolean close = ((CheckBox) ((VBox) alert.getDialogPane().getContent()).getChildren()
+                                .get(0)).isSelected();
+                        systemTray.minimizeToTray(!close);
                     }
                 });
 

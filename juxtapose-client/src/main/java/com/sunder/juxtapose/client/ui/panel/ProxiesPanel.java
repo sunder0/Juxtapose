@@ -2,7 +2,7 @@ package com.sunder.juxtapose.client.ui.panel;
 
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
-import com.sunder.juxtapose.client.ProxyContext;
+import com.sunder.juxtapose.client.SystemAppContext;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
@@ -104,7 +104,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
                 proxyNodesMap.get(group.name).add(new ProxyNode(nodeConfig.name, nodeConfig.type.name(), "10ms"));
             }
         }
-        this.selectedNodeMap = ProxyContext.CONTEXT.getSelectNodes();
+        this.selectedNodeMap = SystemAppContext.CONTEXT.getSelectNodes();
     }
 
     /**
@@ -218,13 +218,14 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             return;
         }
 
-        ProxyContext.CONTEXT.setProfileUrl(urlString);
+        SystemAppContext.CONTEXT.setProfileUrl(urlString);
         try (HttpResponse response = HttpUtil.createGet(urlString).execute()) {
             pscfg.loadYamlStream(response.bodyStream());
 
             // 清空现有数据
             clearAllProxyData();
             initializeProxyData();
+            SystemAppContext.CONTEXT.truncateAndLoadProxySubscribers();
 
             showAlert(AlertType.INFORMATION, "Success", "Proxy configuration downloaded successfully");
             groupListView.refresh();
@@ -254,6 +255,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
                 clearAllProxyData();
                 initializeProxyData();
+                SystemAppContext.CONTEXT.truncateAndLoadProxySubscribers();
 
                 showAlert(AlertType.INFORMATION, "Success",
                         "Proxy configuration imported successfully from " + selectedFile.getName());
@@ -699,7 +701,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             // 更新选中状态
             isSelected = true;
             selectedNodeMap.put(group.getName(), node.getName());
-            ProxyContext.CONTEXT.addSelectNode(group.name, node.name);
+            SystemAppContext.CONTEXT.addSelectNode(group.name, node.name);
 
             // 刷新列表以更新其他节点的选中状态
             groupListView.refresh();

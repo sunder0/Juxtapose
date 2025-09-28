@@ -27,7 +27,7 @@ import java.util.Objects;
 public class ProxyServerConfig extends BaseConfig {
     public final static String NAME = "PROXY_SERVER_CONFIG";
 
-    private final String PROXY_SERVER_CONFIG_FILE = "conf/proxy_servers1.yaml";
+    private final String PROXY_SERVER_CONFIG_FILE = "conf/proxy_servers.yaml";
 
     private Dict config; // 存储整个proxy_servers.yaml配置
     // 存储整个所有代理节点的配置

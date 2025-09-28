@@ -8,6 +8,7 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -137,6 +138,25 @@ public class UIUtils {
         alert.setContentText(message);
         styleDialog(alert);
         alert.showAndWait();
+    }
+
+    // 创建带有是否最小化的弹窗
+    public static Alert createMinimizeAlert(String title, String header) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(header);
+
+        // 创建复选框
+        CheckBox minimizeCheckbox = new CheckBox("minimize to system tray");
+        minimizeCheckbox.setSelected(true);
+
+        // 创建内容区域
+        VBox content = new VBox(30);
+        content.getChildren().addAll(minimizeCheckbox);
+        content.setStyle("-fx-padding: 10 10 10 10;");
+
+        alert.getDialogPane().setContent(content);
+        return alert;
     }
 
     // 创建开关设置

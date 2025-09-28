@@ -44,10 +44,8 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
         addChildComponent(new Socks5ProxyRequestPublisher(this));
         // 添加http本地代理
         addChildComponent(new HttpProxyRequestPublisher(this));
-
-        if (cfg.getProxyEnable()) {
-            addChildComponent(new SystemProxySettingAdapter(this));
-        }
+        // 添加系统代理设置
+        addChildComponent(new SystemProxySettingAdapter(this));
 
         if (Platform.isMac() || Platform.isWindows()) {
             addChildComponent(new MainUIComponent(this, parent));

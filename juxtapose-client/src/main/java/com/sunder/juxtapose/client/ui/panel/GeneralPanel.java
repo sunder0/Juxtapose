@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.client.ui.panel;
 
 import com.sunder.juxtapose.client.ClientOperate;
-import com.sunder.juxtapose.client.ProxyContext;
+import com.sunder.juxtapose.client.SystemAppContext;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.ui.MainUIComponent;
 import static com.sunder.juxtapose.client.ui.UIUtils.createEditableValueRow;
@@ -67,9 +67,9 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
                 createToggleSetting("System Proxy", ccfg.getProxyEnable(), result -> {
                     ccfg.setProxyEnable(result);
                     if (result) {
-                        ProxyContext.CONTEXT.getSystemProxySetting().enableSystemProxy();
+                        SystemAppContext.CONTEXT.getSystemProxySetting().enableSystemProxy();
                     } else {
-                        ProxyContext.CONTEXT.getSystemProxySetting().disableSystemProxy();
+                        SystemAppContext.CONTEXT.getSystemProxySetting().disableSystemProxy();
                     }
                 })
         );
