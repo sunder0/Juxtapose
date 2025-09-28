@@ -3,6 +3,7 @@ package com.sunder.juxtapose.client.ui;
 import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.client.ClientOperate;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
+import com.sunder.juxtapose.client.SystemAppContext;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
@@ -57,6 +58,7 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
 
     private final Executor mainUIExecutor;
     private static Map<String, VBox> panels = new HashMap<>();
+    private static HBox connectBox;
     private ClientOperate clientOperate;
 
     public MainUIComponent(ProxyCoreComponent parent, ClientOperate clientOperate) {
@@ -72,7 +74,8 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
         ConfigManager<?> configManager = getConfigManager();
 
         ClientConfig ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);
-        addModule(new GeneralPanel(this, ccfg, clientOperate));
+        connectBox = new HBox(5);
+        addModule(new GeneralPanel(this, ccfg, clientOperate, connectBox));
 
         ProxyServerConfig pscfg = configManager.getConfigByName(ProxyServerConfig.NAME, ProxyServerConfig.class);
         ProxyRuleConfig prcfg = configManager.getConfigByName(ProxyRuleConfig.NAME, ProxyRuleConfig.class);
@@ -178,9 +181,8 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
 
         // 更新上传下载速率（模拟数据）
         private void updateRates() {
-            // 这里只是模拟数据，实际应用中应该从网络接口获取真实数据
-            double uploadRate = Math.random() * 10;
-            double downloadRate = Math.random() * 100;
+            double uploadRate = (double) SystemAppContext.CONTEXT.getUploadBytes() / 1024;
+            double downloadRate = (double) SystemAppContext.CONTEXT.getDownloadBytes() / 1024;
 
             if (rateDisplay != null) {
                 rateDisplay.updateRates(uploadRate, downloadRate);
@@ -269,17 +271,15 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             VBox.setVgrow(spacer, Priority.ALWAYS);
 
             // 连接按钮 - 优化为居中显示
-            HBox connectBox = new HBox(5);
             connectBox.setPadding(new Insets(10));
             connectBox.setAlignment(Pos.CENTER); // 居中显示
             connectBox.setStyle("-fx-background-color: #e3f2fd;");
 
-            Circle statusIndicator = new Circle(5, Color.rgb(76, 175, 80));
-            Label connectLabel = new Label("Connected");
+            Circle statusIndicator = new Circle(5, Color.rgb(150, 150, 150));
+            Label connectLabel = new Label("PENDING");
             connectLabel.setTextFill(Color.rgb(33, 150, 243));
             connectLabel.setFont(Font.font("Segoe UI", 12));
             connectLabel.setStyle("-fx-font-weight: 500;");
-
             connectBox.getChildren().addAll(statusIndicator, connectLabel);
 
             navigation.getChildren().addAll(spacer, connectBox);

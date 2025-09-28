@@ -10,8 +10,8 @@ public class ConnectionStats {
 
     private long lastActivityTime;
     private long lastStateChangeTime;
-    private long bytesUploaded;
-    private long bytesDownloaded;
+    private long bytesUploaded; // 上传字节数, 单位：字节（B）
+    private long bytesDownloaded; // 下载字节数, 单位：字节（B）
 
     public long getStartTime() {
         return startTime;

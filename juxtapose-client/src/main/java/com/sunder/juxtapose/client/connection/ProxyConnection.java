@@ -6,6 +6,7 @@ import com.sunder.juxtapose.common.ProxyProtocol;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.traffic.TrafficCounter;
 import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ public class ProxyConnection implements Connection {
     private SocketChannel proxyChannel; // 连接代理服务器channel
     private ConnectionContent connectionContent; // 连接内容信息
     private ConnectionStats connectionStats; // 连接统计信息
+    private TrafficCounter trafficCounter; // 流量统计
     private List<ConnectionStateListener> listeners = new CopyOnWriteArrayList<>();
 
     public ProxyConnection(ProxyProtocol protocol, ProxyRequest proxyRequest) {
@@ -80,6 +82,11 @@ public class ProxyConnection implements Connection {
         } finally {
             lock.unlock();
         }
+    }
+
+    @Override
+    public void bindTrafficCounter(TrafficCounter trafficCounter) {
+        this.trafficCounter = trafficCounter;
     }
 
     @Override
@@ -180,6 +187,11 @@ public class ProxyConnection implements Connection {
     @Override
     public ConnectionContent getContent() {
         return connectionContent;
+    }
+
+    @Override
+    public TrafficCounter getTrafficCounter() {
+        return trafficCounter;
     }
 
     /**

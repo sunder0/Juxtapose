@@ -3,9 +3,11 @@ package com.sunder.juxtapose.client.connection;
 import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
+import com.sunder.juxtapose.client.SystemAppContext;
 import com.sunder.juxtapose.common.BaseModule;
 import com.sunder.juxtapose.common.ProxyProtocol;
 import io.netty.channel.ChannelFuture;
+import io.netty.handler.traffic.TrafficCounter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +36,7 @@ public class DefaultConnectionManager extends BaseModule<ProxyCoreComponent> imp
                 ThreadFactoryBuilder.create().setNamePrefix("ConnectionManage-").build());
 
         this.executor.scheduleAtFixedRate(this::maintainConnections, 5, 60, TimeUnit.SECONDS);
-        this.executor.scheduleAtFixedRate(this::reportStats, 1, 10, TimeUnit.SECONDS);
+        this.executor.scheduleAtFixedRate(this::reportStats, 1, 1, TimeUnit.SECONDS);
     }
 
     @Override
@@ -114,15 +116,18 @@ public class DefaultConnectionManager extends BaseModule<ProxyCoreComponent> imp
      */
     private void reportStats() {
         ConnectionStats totalStats = new ConnectionStats();
-        connectionMap.values().forEach(conn -> {
-            ConnectionStats stats = conn.getStats();
-            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + stats.getBytesUploaded());
-            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + stats.getBytesDownloaded());
-        });
-        logger.info("current upload:[{}kb], download:[{}kb].", totalStats.getBytesUploaded() / 1024,
-                totalStats.getBytesDownloaded() / 1024);
-        // 发布统计信息（可用于UI显示）
-        // EventBus.publish(new StatsUpdateEvent(totalStats));
+        for (Connection conn : connectionMap.values()) {
+            TrafficCounter counter = conn.getTrafficCounter();
+            if (counter == null) {
+                continue;
+            }
+            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + counter.lastReadBytes());
+            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + counter.lastWrittenBytes());
+        }
+
+        // 发布统计信息（用于UI显示）
+        SystemAppContext.CONTEXT.setUploadBytes(totalStats.getBytesUploaded());
+        SystemAppContext.CONTEXT.setDownloadBytes(totalStats.getBytesDownloaded());
     }
 
 }

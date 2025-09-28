@@ -17,6 +17,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 
 import java.util.Objects;
 
@@ -84,6 +85,11 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             connection.bindProxyChannel((SocketChannel) ctx.channel());
+
+            ChannelTrafficShapingHandler trafficHandler = new ChannelTrafficShapingHandler(1000);
+            ctx.pipeline().addLast(trafficHandler);
+            connection.bindTrafficCounter(trafficHandler.trafficCounter());
+
             connection.activeMessageTransfer(DirectForwardingSubscriber.this);
 
             ctx.fireChannelActive();

@@ -32,6 +32,7 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 import io.netty.util.ReferenceCountUtil;
 
 import java.util.Objects;
@@ -51,6 +52,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
     private CertComponent certComponent;
     private DefaultConnectionManager connManager;
     private SocketChannel relayChannel; // 和中继服务器通信的channel
+    private ChannelTrafficShapingHandler trafficShapingHandler;
 
     public JuxtaProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
             ProxyServerNodeManager parent) {
@@ -83,6 +85,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                 @Override
                 protected void initChannel(SocketChannel socketChannel) throws Exception {
                     ChannelPipeline pipeline = socketChannel.pipeline();
+                    pipeline.addLast(trafficShapingHandler = new ChannelTrafficShapingHandler(1000));
                     if (cfg.tls) {
                         pipeline.addLast(
                                 certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
@@ -118,6 +121,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         Connection connection = connManager.createConnection(ProxyProtocol.JUXTA, request);
 
         connection.bindProxyChannel(relayChannel);
+        connection.bindTrafficCounter(trafficShapingHandler.trafficCounter());
         connection.activeMessageTransfer(this);
     }
 

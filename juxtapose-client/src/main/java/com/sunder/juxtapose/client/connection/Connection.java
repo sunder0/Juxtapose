@@ -3,6 +3,7 @@ package com.sunder.juxtapose.client.connection;
 import com.sunder.juxtapose.client.ProxyMessageReceiver;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.traffic.TrafficCounter;
 
 /**
  * @author : denglinhai
@@ -44,11 +45,22 @@ public interface Connection {
     ConnectionContent getContent();
 
     /**
+     * @return 获取流量统计工具
+     */
+    TrafficCounter getTrafficCounter();
+
+    /**
      * 绑定proxy channel, 即写出channel（转发给proxy server端数据的channel）
      *
      * @param channel io.netty.channel.socket.SocketChannel
      */
     void bindProxyChannel(SocketChannel channel);
+
+    /**
+     * 绑定流量统计工具
+     * @param trafficCounter io.netty.handler.traffic.TrafficCounter
+     */
+    void bindTrafficCounter(TrafficCounter trafficCounter);
 
     /**
      * 激活数据传输，使得从publisher的数据可以到达subscriber，从而将数据转发给代理服务端

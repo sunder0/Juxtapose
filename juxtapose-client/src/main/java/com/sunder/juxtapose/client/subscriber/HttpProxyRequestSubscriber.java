@@ -9,7 +9,7 @@ import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.connection.Connection;
 import com.sunder.juxtapose.client.connection.ConnectionState;
 import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
-import com.sunder.juxtapose.common.BaseCompositeComponent;
+import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -41,7 +42,7 @@ import java.util.Objects;
  * @author : denglinhai
  * @date : 17:46 2025/09/02
  */
-public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServerNodeManager>
+public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
         implements ProxyRequestSubscriber, ProxyMessageReceiver {
     public final static String NAME = "HTTP_PROXY_SERVER";
 
@@ -70,6 +71,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
             @Override
             protected void initChannel(SocketChannel socketChannel) throws Exception {
                 ChannelPipeline pipeline = socketChannel.pipeline();
+                pipeline.addLast(new ChannelTrafficShapingHandler(1000));
                 if (cfg.tls) {
                     pipeline.addLast(
                             certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
@@ -87,7 +89,42 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
 
     @Override
     protected void startInternal() {
-        super.startInternal();
+        // 获取流量上下行
+        // this.singleExecutor.execute(() -> {
+        //     while (true) {
+        //         try {
+        //             Thread.sleep(2000);
+        //
+        //             TrafficCounter trafficCounter = globalTrafficHandler.trafficCounter();
+        //             if (trafficCounter != null) {
+        //                 long currentTime = System.currentTimeMillis();
+        //
+        //                 // 获取统计信息
+        //                 long totalRead = trafficCounter.cumulativeReadBytes();
+        //                 long totalWritten = trafficCounter.cumulativeWrittenBytes();
+        //                 long lastRead = trafficCounter.lastReadBytes();
+        //                 long lastWritten = trafficCounter.lastWrittenBytes();
+        //                 long lastTime = trafficCounter.lastTime();
+        //
+        //                 // 计算当前速率
+        //                 double timeDelta = (currentTime - lastTime) / 1000.0;
+        //                 double currentReadRate = timeDelta > 0 ? lastRead / timeDelta : 0;
+        //                 double currentWriteRate = timeDelta > 0 ? lastWritten / timeDelta : 0;
+        //
+        //                 System.out.println("\n=== 全局流量统计 ===");
+        //                 System.out.printf("当前读取速率: %.2f B/s%n", currentReadRate);
+        //                 System.out.printf("当前写入速率: %.2f B/s%n", currentWriteRate);
+        //                 System.out.printf("总读取数据: %.2f MB%n", totalRead / (1024.0 * 1024));
+        //                 System.out.printf("总写入数据: %.2f MB%n", totalWritten / (1024.0 * 1024));
+        //                 System.out.printf("最后统计时间: %d ms ago%n", currentTime - lastTime);
+        //             }
+        //
+        //         } catch (InterruptedException ignore) {
+        //             Thread.currentThread().interrupt();
+        //             break;
+        //         }
+        //     }
+        // });
     }
 
     @Override
@@ -104,6 +141,9 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
             bootstrap.clone().connect(cfg.server, cfg.port).addListener((ChannelFutureListener) cf -> {
                 if (cf.isSuccess()) {
                     cf.channel().pipeline().addLast(new HttpRelayMessageHandler(connection));
+                    ChannelTrafficShapingHandler trafficHandler =
+                            cf.channel().pipeline().get(ChannelTrafficShapingHandler.class);
+                    connection.bindTrafficCounter(trafficHandler.trafficCounter());
 
                     String uri = "http://" + request.getHost() + ":" + request.getPort();
                     HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.CONNECT, uri);

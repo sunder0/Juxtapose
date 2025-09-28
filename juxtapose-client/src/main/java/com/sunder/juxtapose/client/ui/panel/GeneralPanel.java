@@ -17,6 +17,7 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 
 /**
@@ -28,11 +29,14 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
     private final ClientConfig ccfg;
     private ClientOperate clientOperate;
     private VBox mainPane;
+    private HBox connectBox;
 
-    public GeneralPanel(MainUIComponent belongComponent, ClientConfig ccfg, ClientOperate clientOperate) {
+    public GeneralPanel(MainUIComponent belongComponent, ClientConfig ccfg, ClientOperate clientOperate,
+            HBox connectBox) {
         super("GENERAL_PANEL", belongComponent);
         this.ccfg = ccfg;
         this.clientOperate = clientOperate;
+        this.connectBox = connectBox;
         initialize();
     }
 
@@ -68,8 +72,26 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
                     ccfg.setProxyEnable(result);
                     if (result) {
                         SystemAppContext.CONTEXT.getSystemProxySetting().enableSystemProxy();
+
+                        Circle statusIndicator = new Circle(5, Color.rgb(76, 175, 80));
+                        Label connectLabel = new Label("RUNNING");
+                        connectLabel.setTextFill(Color.rgb(33, 150, 243));
+                        connectLabel.setFont(Font.font("Segoe UI", 12));
+                        connectLabel.setStyle("-fx-font-weight: 500;");
+
+                        connectBox.getChildren().set(0, statusIndicator);
+                        connectBox.getChildren().set(1, connectLabel);
                     } else {
                         SystemAppContext.CONTEXT.getSystemProxySetting().disableSystemProxy();
+
+                        Circle statusIndicator = new Circle(5, Color.rgb(150, 150, 150));
+                        Label connectLabel = new Label("PENDING");
+                        connectLabel.setTextFill(Color.rgb(33, 150, 243));
+                        connectLabel.setFont(Font.font("Segoe UI", 12));
+                        connectLabel.setStyle("-fx-font-weight: 500;");
+
+                        connectBox.getChildren().set(0, statusIndicator);
+                        connectBox.getChildren().set(1, connectLabel);
                     }
                 })
         );
