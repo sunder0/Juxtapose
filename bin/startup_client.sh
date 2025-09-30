@@ -27,4 +27,4 @@ fi
 
 export JUXTAPOSE_HOME
 
-sh ${JUXTAPOSE_HOME}/bin/runjava_server.sh com.sunder.juxtapose.client.ClientBootstrap $@
+sh ${JUXTAPOSE_HOME}/bin/runjava_server.sh com.sunder.juxtapose.client.StandardClient $@

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <assembly>
-	<id>all</id>
-	<baseDirectory>mlnotebookmanager-all</baseDirectory>
+	<id>server</id>
+	<baseDirectory>Juxtapose-server</baseDirectory>
 	<formats>
 		<format>dir</format>
 		<format>tar.gz</format>
@@ -9,17 +9,22 @@
 	<fileSets>
 		<fileSet>
 			<includes>
-				<include>bin/*</include>
-				<include>conf/**</include>
-				<include>lib/**</include>
+				<include>bin/**</include>
+                <include>conf/server.properties</include>
+                <include>conf/cert/**</include>
+                <include>conf/logback.xml</include>
+                <include>lib/**</include>
 			</includes>
+            <excludes>
+                <exclude>bin/startup_client.sh</exclude>
+            </excludes>
 		</fileSet>
 	</fileSets>
 
 	<moduleSets>
 		<moduleSet>
 			<includes>
-				<include>com.dingcloud.mlnotebookmanager:mlnotebookmanager-server</include>
+				<include>com.sunder.juxtapose:juxtapose-server</include>
 			</includes>
 			<binaries>
 				<outputDirectory>lib/</outputDirectory>
