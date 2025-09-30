@@ -41,9 +41,11 @@ SOCKS5	socks5	username, password	TCP/UDP
 HTTP(S)
 以及用户自定义协议
 
-1.设置系统代理,  参照：https://myth.cx/p/windows-proxy/
-2.域名ip库geoip
-3.rule规则模式（黑、白名单）、script
+~~1.设置系统代理,  参照：https://myth.cx/p/windows-proxy/~~
+~~2.域名ip库geoip
+3.rule规则模式（黑、白名单）~~、script
 4.VMess协议的支持
-5.客户端界面
+~~5.客户端界面~~
 6.空闲检测
+7.优化日志加载打印（会卡主界面，日志一多。。）
+8.自动加载rule和profile配置
