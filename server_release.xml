@@ -17,6 +17,8 @@
 			</includes>
             <excludes>
                 <exclude>bin/startup_client.sh</exclude>
+				<exclude>bin/startup_client.cmd</exclude>
+				<exclude>bin/run_client.cmd</exclude>
             </excludes>
 		</fileSet>
 	</fileSets>

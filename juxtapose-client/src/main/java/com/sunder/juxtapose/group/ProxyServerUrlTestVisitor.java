@@ -104,7 +104,7 @@ public class ProxyServerUrlTestVisitor {
         } finally {
             if (connection != null) {
                 try {
-                    //connection.close();
+                    connection.close();
                 } catch (Exception closeEx) {
                     logger.warn("Failed to close connection, proxy[{}].", subscriber.proxyUri(), closeEx);
                 }

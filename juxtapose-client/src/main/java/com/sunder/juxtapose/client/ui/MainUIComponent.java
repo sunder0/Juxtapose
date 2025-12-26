@@ -7,7 +7,6 @@ import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
-import static com.sunder.juxtapose.client.ui.UIUtils.createMinimizeAlert;
 import com.sunder.juxtapose.client.ui.def.RateDisplay;
 import com.sunder.juxtapose.client.ui.panel.GeneralPanel;
 import com.sunder.juxtapose.client.ui.panel.LogsPanel;
@@ -49,6 +48,8 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+import static com.sunder.juxtapose.client.ui.UIUtils.createMinimizeAlert;
+
 /**
  * @author : denglinhai
  * @date : 10:13 2025/09/22
@@ -78,10 +79,6 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
         ClientConfig ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);
         connectBox = new HBox(5);
         addModule(new GeneralPanel(this, ccfg, clientOperate, connectBox));
-
-        // ProxyServerConfig pscfg = configManager.getConfigByName(ProxyServerConfig.NAME, ProxyServerConfig.class);
-        // ProxyRuleConfig prcfg = configManager.getConfigByName(ProxyRuleConfig.NAME, ProxyRuleConfig.class);
-        // addModule(new ProxiesPanel(this, pscfg, prcfg));
 
         LogModule<?> logModule = getModuleByName(LogModule.NAME, true, LogModule.class);
         addModule(new LogsPanel(this, ccfg, logModule));
