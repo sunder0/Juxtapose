@@ -17,6 +17,8 @@ public abstract class BaseComponent<T extends Component<?>> extends BaseLifecycl
     protected String name;
     // 父组件
     protected T parent;
+    // 应用上下文
+    protected ApplicationContext context;
     // moduleName -> module
     protected final Map<String, Module<?>> moduleMap = new ConcurrentHashMap<>(16);
 
@@ -30,12 +32,18 @@ public abstract class BaseComponent<T extends Component<?>> extends BaseLifecycl
         super(listeners);
         this.name = name;
         this.parent = Objects.requireNonNull(parent);
+        this.context = parent.getApplicationContext();
         this.logger = LoggerFactory.getLogger(name);
     }
 
     @Override
     public T getParentComponent() {
         return parent;
+    }
+
+    @Override
+    public ApplicationContext getApplicationContext() {
+        return context;
     }
 
     @Override

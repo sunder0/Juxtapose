@@ -3,6 +3,7 @@ package com.sunder.juxtapose.client.connection;
 import com.sunder.juxtapose.common.ProxyProtocol;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.Map;
 
 /**
@@ -11,12 +12,12 @@ import java.util.Map;
  */
 public class ConnectionContent {
     private ProxyProtocol protocol; // 代理走的协议类型
-    private InetSocketAddress sourceAddress; // 客户端地址
+    private SocketAddress sourceAddress; // 客户端地址
     private String proxyHost; // 代理的请求host
     private Integer proxyPort; // 代理的请求port
     private Map<String, Object> metadata; // 元数据信息
 
-    public ConnectionContent(ProxyProtocol protocol, InetSocketAddress sourceAddress, String proxyHost,
+    public ConnectionContent(ProxyProtocol protocol, SocketAddress sourceAddress, String proxyHost,
             Integer proxyPort) {
         this.protocol = protocol;
         this.sourceAddress = sourceAddress;
@@ -33,7 +34,7 @@ public class ConnectionContent {
     }
 
     public InetSocketAddress getSourceAddress() {
-        return sourceAddress;
+        return (InetSocketAddress) sourceAddress;
     }
 
     public void setSourceAddress(InetSocketAddress sourceAddress) {

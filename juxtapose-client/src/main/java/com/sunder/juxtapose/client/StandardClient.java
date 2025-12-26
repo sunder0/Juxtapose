@@ -18,13 +18,11 @@ public final class StandardClient extends ToplevelComponent implements ClientOpe
     private final static Logger logger = LoggerFactory.getLogger(StandardClient.class);
 
     public StandardClient() {
-        super("STANDARD_CLIENT");
+        super("STANDARD_CLIENT", new ClientApplicationContext());
     }
 
     @Override
     protected void initInternal() {
-        SystemAppContext.CONTEXT.registerClientOperate(this);
-
         DefaultConfigManager<StandardClient> configManager = new DefaultConfigManager<>(this);
         addModule(configManager);
 

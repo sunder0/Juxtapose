@@ -67,6 +67,10 @@ public class ClientConfig extends BaseConfig {
         return config.getStr("geoip.mmdbpath", "${JUXTAPOSE_HOME}/conf/Country.mmdb");
     }
 
+    public String getLatencyUrl() {
+        return config.getStr("latency.testurl", "http://www.gstatic.com/generate_204");
+    }
+
     /**
      * ------------------------------------- system proxy -------------------------------------
      **/

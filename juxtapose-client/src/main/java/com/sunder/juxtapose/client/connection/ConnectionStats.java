@@ -8,7 +8,7 @@ package com.sunder.juxtapose.client.connection;
 public class ConnectionStats {
     private long startTime;
 
-    private long lastActivityTime;
+    private long lastActivityTime = System.currentTimeMillis();
     private long lastStateChangeTime;
     private long bytesUploaded; // 上传字节数, 单位：字节（B）
     private long bytesDownloaded; // 下载字节数, 单位：字节（B）

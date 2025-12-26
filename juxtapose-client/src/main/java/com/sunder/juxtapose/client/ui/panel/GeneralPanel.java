@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.client.ui.panel;
 
 import com.sunder.juxtapose.client.ClientOperate;
-import com.sunder.juxtapose.client.SystemAppContext;
+import com.sunder.juxtapose.client.ClientApplicationContext;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.ui.MainUIComponent;
 import static com.sunder.juxtapose.client.ui.UIUtils.createEditableValueRow;
@@ -30,6 +30,7 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
     private ClientOperate clientOperate;
     private VBox mainPane;
     private HBox connectBox;
+    private ClientApplicationContext context;
 
     public GeneralPanel(MainUIComponent belongComponent, ClientConfig ccfg, ClientOperate clientOperate,
             HBox connectBox) {
@@ -37,6 +38,7 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
         this.ccfg = ccfg;
         this.clientOperate = clientOperate;
         this.connectBox = connectBox;
+        this.context = belongComponent.getApplicationContext(ClientApplicationContext.class);
         initialize();
     }
 
@@ -71,7 +73,7 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
                 createToggleSetting("System Proxy", ccfg.getProxyEnable(), result -> {
                     ccfg.setProxyEnable(result);
                     if (result) {
-                        SystemAppContext.CONTEXT.getSystemProxySetting().enableSystemProxy();
+                        context.getSystemProxySetting().enableSystemProxy();
 
                         Circle statusIndicator = new Circle(5, Color.rgb(76, 175, 80));
                         Label connectLabel = new Label("RUNNING");
@@ -82,7 +84,7 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
                         connectBox.getChildren().set(0, statusIndicator);
                         connectBox.getChildren().set(1, connectLabel);
                     } else {
-                        SystemAppContext.CONTEXT.getSystemProxySetting().disableSystemProxy();
+                        context.getSystemProxySetting().disableSystemProxy();
 
                         Circle statusIndicator = new Circle(5, Color.rgb(150, 150, 150));
                         Label connectLabel = new Label("PENDING");

@@ -14,6 +14,8 @@ import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.group.ProxyNodeLatencyTest;
+import com.sunder.juxtapose.group.ProxyServerUrlTestVisitor;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
@@ -43,7 +45,7 @@ import java.util.Objects;
  * @date : 17:46 2025/09/02
  */
 public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
-        implements ProxyRequestSubscriber, ProxyMessageReceiver {
+        implements ProxyRequestSubscriber, ProxyMessageReceiver, ProxyNodeLatencyTest {
     public final static String NAME = "HTTP_PROXY_SERVER";
 
     private Bootstrap bootstrap;
@@ -89,42 +91,8 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
 
     @Override
     protected void startInternal() {
-        // 获取流量上下行
-        // this.singleExecutor.execute(() -> {
-        //     while (true) {
-        //         try {
-        //             Thread.sleep(2000);
-        //
-        //             TrafficCounter trafficCounter = globalTrafficHandler.trafficCounter();
-        //             if (trafficCounter != null) {
-        //                 long currentTime = System.currentTimeMillis();
-        //
-        //                 // 获取统计信息
-        //                 long totalRead = trafficCounter.cumulativeReadBytes();
-        //                 long totalWritten = trafficCounter.cumulativeWrittenBytes();
-        //                 long lastRead = trafficCounter.lastReadBytes();
-        //                 long lastWritten = trafficCounter.lastWrittenBytes();
-        //                 long lastTime = trafficCounter.lastTime();
-        //
-        //                 // 计算当前速率
-        //                 double timeDelta = (currentTime - lastTime) / 1000.0;
-        //                 double currentReadRate = timeDelta > 0 ? lastRead / timeDelta : 0;
-        //                 double currentWriteRate = timeDelta > 0 ? lastWritten / timeDelta : 0;
-        //
-        //                 System.out.println("\n=== 全局流量统计 ===");
-        //                 System.out.printf("当前读取速率: %.2f B/s%n", currentReadRate);
-        //                 System.out.printf("当前写入速率: %.2f B/s%n", currentWriteRate);
-        //                 System.out.printf("总读取数据: %.2f MB%n", totalRead / (1024.0 * 1024));
-        //                 System.out.printf("总写入数据: %.2f MB%n", totalWritten / (1024.0 * 1024));
-        //                 System.out.printf("最后统计时间: %d ms ago%n", currentTime - lastTime);
-        //             }
-        //
-        //         } catch (InterruptedException ignore) {
-        //             Thread.currentThread().interrupt();
-        //             break;
-        //         }
-        //     }
-        // });
+        // 第一次启动测试下延迟
+        cfg.latency = testLatency();
     }
 
     @Override
@@ -135,35 +103,26 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
     }
 
     @Override
-    public void subscribe(ProxyRequest request) {
+    public Connection subscribe(ProxyRequest request) {
         try {
             Connection connection = connManager.createConnection(ProxyProtocol.HTTP, request);
             bootstrap.clone().connect(cfg.server, cfg.port).addListener((ChannelFutureListener) cf -> {
                 if (cf.isSuccess()) {
-                    cf.channel().pipeline().addLast(new HttpRelayMessageHandler(connection));
+                    cf.channel().pipeline().addLast(new HttpRelayMessageHandler(request, connection));
                     ChannelTrafficShapingHandler trafficHandler =
                             cf.channel().pipeline().get(ChannelTrafficShapingHandler.class);
                     connection.bindTrafficCounter(trafficHandler.trafficCounter());
-
-                    String uri = "http://" + request.getHost() + ":" + request.getPort();
-                    HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.CONNECT, uri);
-                    if (cfg.auth) {
-                        String basicEncode = Base64.getEncoder().encodeToString(
-                                (cfg.username + ":" + cfg.password).getBytes(StandardCharsets.UTF_8));
-                        httpRequest.headers().add(HttpHeaderNames.PROXY_AUTHORIZATION, "Basic " + basicEncode);
-                        connection.changeState(ConnectionState.AUTHENTICATING);
-                    }
-                    cf.channel().writeAndFlush(httpRequest);
 
                     logger.info("Connect Http proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
                 } else {
                     logger.info("Connect Http proxy relay server[{}:{}] failed!", cfg.server, cfg.port, cf.cause());
                 }
             }).await();
+
+            return connection;
         } catch (Exception ex) {
             throw new ComponentException("Start HttpRelayServerComponent failed!", ex);
         }
-
     }
 
     @Override
@@ -172,19 +131,30 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         connection.writeMessage(message);
     }
 
+    @Override
+    public long testLatency() {
+        ProxyServerUrlTestVisitor urlTestVisitor = parent.getUrlLatencyTestSupport();
+        return urlTestVisitor.testUrl(this);
+    }
+
     /**
      * 与代理服务器通信， 判断是否建立http通道成功
      */
     private class HttpRelayMessageHandler extends ChannelInboundHandlerAdapter {
+        private final ProxyRequest request;
         private final Connection connection;
 
-        public HttpRelayMessageHandler(Connection connection) {
+        public HttpRelayMessageHandler(ProxyRequest request, Connection connection) {
+            this.request = request;
             this.connection = connection;
         }
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             connection.bindProxyChannel((SocketChannel) ctx.channel());
+
+            sendHttpConnectMessage(ctx);
+
             ctx.fireChannelActive();
         }
 
@@ -207,7 +177,6 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
 
                     ctx.pipeline().addLast(new HttpTunnelMessageHandler(connection));
                     connection.activeMessageTransfer(HttpProxyRequestSubscriber.this);
-                    // request.setProxyMessageReceiver(HttpProxyRequestSubscriber.this);
                 }
             } else {
                 ctx.fireChannelRead(msg);
@@ -221,6 +190,24 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                 HttpProxyRequestSubscriber.this.destroy();
             });
         }
+
+        /**
+         * 发送http connect连接建立请求
+         *
+         * @param ctx 上下文
+         */
+        private void sendHttpConnectMessage(ChannelHandlerContext ctx) {
+            String uri = "http://" + request.getHost() + ":" + request.getPort();
+            HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.CONNECT, uri);
+            if (cfg.auth) {
+                String basicEncode = Base64.getEncoder()
+                        .encodeToString((cfg.username + ":" + cfg.password).getBytes(StandardCharsets.UTF_8));
+                httpRequest.headers().add(HttpHeaderNames.PROXY_AUTHORIZATION, "Basic " + basicEncode);
+                connection.changeState(ConnectionState.AUTHENTICATING);
+            }
+            ctx.channel().writeAndFlush(httpRequest);
+        }
+
     }
 
     /**
@@ -242,7 +229,6 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                 ctx.fireChannelRead(ctx);
             }
         }
-
     }
 
     @Override
@@ -251,12 +237,17 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
     }
 
     @Override
+    public long proxyLatency() {
+        return cfg.latency;
+    }
+
+    @Override
     public boolean isProxy() {
         return true;
     }
 
     @Override
-    public ProxyProtocol proxyMode() {
-        return ProxyProtocol.JUXTA;
+    public ProxyProtocol proxyProtocol() {
+        return ProxyProtocol.HTTP;
     }
 }

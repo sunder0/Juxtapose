@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.client;
 
+import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeGroupConfig;
@@ -10,8 +11,16 @@ import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.group.ProxyGroupNodeSelectStrategy;
+import com.sunder.juxtapose.group.ProxyGroupNodeSelectStrategy.FallbackStrategy;
+import com.sunder.juxtapose.group.ProxyGroupNodeSelectStrategy.LoadBalanceStrategy;
+import com.sunder.juxtapose.group.ProxyGroupNodeSelectStrategy.SelectStrategy;
+import com.sunder.juxtapose.group.ProxyGroupNodeSelectStrategy.URLTestStrategy;
+import com.sunder.juxtapose.group.ProxyGroupType;
+import com.sunder.juxtapose.group.ProxyServerUrlTestVisitor;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -32,6 +41,8 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     private ProxyServerConfig proxyServerCfg;
     // 证书信息
     private CertComponent certComponent;
+    // 延迟url测试
+    private ProxyServerUrlTestVisitor urlTestVisitor;
     // select 类型的组，每个profile只允许有一个
     private ProxyServerNodeGroupConfig selectGroup;
     // 直连服务节点, NAME -> ProxyRequestSubscriber
@@ -40,10 +51,13 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     private final Map<String, ProxyRequestSubscriber> proxyNodes = new ConcurrentHashMap<>(16);
 
     // 代理组, GROUP_NAME -> (NAME -> ProxyRequestSubscriber)
-    private final Map<String, Map<String, ProxyRequestSubscriber>> proxyGroups = new ConcurrentHashMap<>(16);
+    // private final Map<String, Map<String, ProxyRequestSubscriber>> proxyGroups = new ConcurrentHashMap<>(16);
+    private final Map<String, ProxyGroup> proxyGroups = new ConcurrentHashMap<>(16);
 
     public ProxyServerNodeManager(ProxyCoreComponent parent) {
         super(NAME, parent);
+
+        ((ClientApplicationContext) context).registerProxyNodeManager(this);
     }
 
     @Override
@@ -58,7 +72,9 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         addChildComponent(new DirectForwardingSubscriber(this));
         loadProxySubscribers();
 
-        SystemAppContext.CONTEXT.registerProxyNodeManager(this);
+        ClientConfig ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);
+        urlTestVisitor = new ProxyServerUrlTestVisitor(ccfg);
+        // ClientApplicationContext.CONTEXT.registerProxyNodeManager(this);
 
         super.initInternal();
     }
@@ -79,36 +95,26 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
      * 返回可用的代理节点
      *
      * @param request 代理请求
-     * @param proxyGroup 代理组
+     * @param groupName 代理组名称
      */
-    public ProxyRequestSubscriber proxyNode(String proxyGroup, ProxyRequest request) {
+    public ProxyRequestSubscriber proxyNode(String groupName, ProxyRequest request) {
         // 在更新订阅期间，暂时不可用，临时，todo：可以添加一个缓存队列用于处理更新代理
         if (updProxy.get()) {
             return directNode(request);
         }
 
-        // 有select组且用户选了select组的节点
-        Map<String, String> selectNodes = SystemAppContext.CONTEXT.getSelectNodes();
-        String select;
-        if (selectGroup != null && (select = selectNodes.get(selectGroup.name)) != null) {
-            System.out.println(11);
-            return proxyNodes.get(select);
-        }
-
-        if (!proxyGroups.containsKey(proxyGroup)) {
+        if (!proxyGroups.containsKey(groupName)) {
             throw new RuntimeException("Proxy group is not exist.");
         }
 
-        List<ProxyRequestSubscriber> proxyNodes = new ArrayList<>(proxyGroups.get(proxyGroup).values());
-        if (proxyNodes.isEmpty()) {
+        ProxyGroup group = proxyGroups.get(groupName);
+        if (group.nodes.isEmpty()) {
             logger.error("No proxy nodes available, proxy will been closed.");
             request.close();
             throw new RuntimeException("No proxy nodes available.");
         }
 
-        // todo: 代理组的策略替代默认的hash发布策略
-        int index = Math.abs(request.hashCode() % proxyNodes.size());
-        return proxyNodes.get(index);
+        return group.strategy.select(request);
     }
 
     // todo: 检测代理节点是否存活。。
@@ -145,7 +151,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     /**
      * 清空代理订阅节点
      */
-    public void truncateAndLoadProxySubscribers() {
+    public void refreshProxySubscribers() {
         if (updProxy.compareAndSet(false, true)) {
             proxyNodes.clear();
             proxyGroups.clear();
@@ -153,6 +159,15 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
             loadProxySubscribers();
             updProxy.set(false);
         }
+    }
+
+    /**
+     * 获取延迟测试支持
+     *
+     * @return com.sunder.juxtapose.group.ProxyServerUrlTestVisitor
+     */
+    public ProxyServerUrlTestVisitor getUrlLatencyTestSupport() {
+        return urlTestVisitor;
     }
 
     /**
@@ -170,14 +185,35 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         // 代理节点分组
         checkProfileGroup();
         for (ProxyServerNodeGroupConfig group : proxyServerCfg.getProxyNodeGroupConfigs()) {
-            if (group.type.equals("select")) {
+            if (ProxyGroupType.SELECT.getVal().equalsIgnoreCase(group.type)) {
                 selectGroup = group;
             }
 
-            proxyGroups.computeIfAbsent(group.name, k -> new ConcurrentHashMap<>(64));
+            Map<String, ProxyRequestSubscriber> subscribers = new LinkedHashMap<>(64);
             for (String proxyNode : group.proxies) {
-                proxyGroups.get(group.name).put(proxyNode, proxyNodes.get(proxyNode));
+                subscribers.put(proxyNode, proxyNodes.get(proxyNode));
             }
+
+            ProxyGroupNodeSelectStrategy selectStrategy;
+            switch (ProxyGroupType.fromVal(group.type)) {
+                case SELECT:
+                    selectStrategy = new SelectStrategy(group.name, (ClientApplicationContext) context,
+                            new ArrayList<>(subscribers.values()));
+                    break;
+                case URL_TEST:
+                    selectStrategy = new URLTestStrategy(group.name, new ArrayList<>(subscribers.values()));
+                    break;
+                case FALLBACK:
+                    selectStrategy = new FallbackStrategy(group.name, new ArrayList<>(subscribers.values()));
+                    break;
+                case LOAD_BALANCE:
+                    selectStrategy = new LoadBalanceStrategy(group.name, new ArrayList<>(subscribers.values()));
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unsupport select strategy!");
+            }
+
+            proxyGroups.put(group.name, new ProxyGroup(selectStrategy, subscribers));
         }
     }
 
@@ -187,4 +223,18 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
             throw new ComponentException("There can only be one select group type.");
         }
     }
+
+    /**
+     * 代理组封装
+     */
+    public static class ProxyGroup {
+        public ProxyGroupNodeSelectStrategy strategy;
+        public Map<String, ProxyRequestSubscriber> nodes;
+
+        public ProxyGroup(ProxyGroupNodeSelectStrategy strategy, Map<String, ProxyRequestSubscriber> nodes) {
+            this.strategy = strategy;
+            this.nodes = nodes;
+        }
+    }
+
 }

@@ -140,7 +140,7 @@ public class ProxyRequest {
      */
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            if (clientChannel.isActive()) {
+            if (clientChannel != null && clientChannel.isActive()) {
                 clientChannel.close();
             }
             transfer.releaseMessage();

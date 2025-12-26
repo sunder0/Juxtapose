@@ -1,6 +1,6 @@
 package com.sunder.juxtapose.client.system;
 
-import com.sunder.juxtapose.client.SystemAppContext;
+import com.sunder.juxtapose.client.ClientApplicationContext;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.common.BaseComponent;
@@ -19,7 +19,8 @@ public class SystemProxySettingAdapter extends BaseComponent<ProxyCoreComponent>
 
     public SystemProxySettingAdapter(ProxyCoreComponent parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
-        SystemAppContext.CONTEXT.registerSystemProxySetting(this);
+
+        ((ClientApplicationContext) context).registerSystemProxySetting(this);
     }
 
     @Override

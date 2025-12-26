@@ -3,7 +3,7 @@ package com.sunder.juxtapose.client.connection;
 import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.SystemAppContext;
+import com.sunder.juxtapose.client.ClientApplicationContext;
 import com.sunder.juxtapose.common.BaseModule;
 import com.sunder.juxtapose.common.ProxyProtocol;
 import io.netty.channel.ChannelFuture;
@@ -126,8 +126,9 @@ public class DefaultConnectionManager extends BaseModule<ProxyCoreComponent> imp
         }
 
         // 发布统计信息（用于UI显示）
-        SystemAppContext.CONTEXT.setUploadBytes(totalStats.getBytesUploaded());
-        SystemAppContext.CONTEXT.setDownloadBytes(totalStats.getBytesDownloaded());
+        ClientApplicationContext context = getComponent().getApplicationContext(ClientApplicationContext.class);
+        context.setUploadBytes(totalStats.getBytesUploaded());
+        context.setDownloadBytes(totalStats.getBytesDownloaded());
     }
 
 }

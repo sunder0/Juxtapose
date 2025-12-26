@@ -21,6 +21,8 @@ import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
+import com.sunder.juxtapose.group.ProxyNodeLatencyTest;
+import com.sunder.juxtapose.group.ProxyServerUrlTestVisitor;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
@@ -42,7 +44,7 @@ import java.util.Objects;
  * @date : 15:38 2023/7/5
  */
 public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
-        implements ProxyRequestSubscriber, ProxyMessageReceiver {
+        implements ProxyRequestSubscriber, ProxyMessageReceiver, ProxyNodeLatencyTest {
     public final static String NAME = "JUXTA_PROXY_SERVER";
 
     private Class<? extends SocketChannel> socketChannel;
@@ -117,12 +119,13 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
     }
 
     @Override
-    public void subscribe(ProxyRequest request) {
+    public Connection subscribe(ProxyRequest request) {
         Connection connection = connManager.createConnection(ProxyProtocol.JUXTA, request);
-
         connection.bindProxyChannel(relayChannel);
         connection.bindTrafficCounter(trafficShapingHandler.trafficCounter());
         connection.activeMessageTransfer(this);
+
+        return connection;
     }
 
     @Override
@@ -132,6 +135,12 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         ProxyRequestMessage proxyMessage = new ProxyRequestMessage(
                 serialId, connection.getContent().getProxyHost(), connection.getContent().getProxyPort(), message);
         connection.writeMessage(proxyMessage);
+    }
+
+    @Override
+    public long testLatency() {
+        ProxyServerUrlTestVisitor urlTestVisitor = parent.getUrlLatencyTestSupport();
+        return urlTestVisitor.testUrl(this);
     }
 
     /**
@@ -180,6 +189,8 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                         message.getMessage());
                 ctx.close();
                 JuxtaProxyRequestSubscriber.this.destroy();
+            } else {
+                // nothing to do...
             }
         }
 
@@ -212,6 +223,10 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         return cfg.server + ":" + cfg.port;
     }
 
+    @Override
+    public long proxyLatency() {
+        return cfg.latency;
+    }
 
     @Override
     public boolean isProxy() {
@@ -219,7 +234,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
     }
 
     @Override
-    public ProxyProtocol proxyMode() {
+    public ProxyProtocol proxyProtocol() {
         return ProxyProtocol.JUXTA;
     }
 }

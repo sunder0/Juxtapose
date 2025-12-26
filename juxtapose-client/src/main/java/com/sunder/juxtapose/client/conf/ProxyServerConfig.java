@@ -92,6 +92,11 @@ public class ProxyServerConfig extends BaseConfig {
         return proxyNodeGroupConfigs;
     }
 
+    public ProxyServerNodeGroupConfig getProxyNodeGroupConfig(String groupName) {
+        return proxyNodeGroupConfigs.stream().filter(
+                e -> e.name.equalsIgnoreCase(groupName)).findFirst().orElse(null);
+    }
+
     public File getConfigDirectory() {
         MultiProtocolResource resource = new MultiProtocolResource(PROXY_SERVER_CONFIG_FILE, true);
         return ((FileResource) resource.getResource()).getFile();
@@ -141,6 +146,8 @@ public class ProxyServerConfig extends BaseConfig {
         public String server;
         public Integer port;
 
+        public long latency = 0L; // 节点延迟
+
         @Override
         public boolean equals(Object object) {
             if (object == null || getClass() != object.getClass()) {
@@ -164,9 +171,10 @@ public class ProxyServerConfig extends BaseConfig {
                     ", auth=" + auth +
                     ", username='" + username + '\'' +
                     ", password='" + password + '\'' +
-                    ", protocol=" + type +
-                    ", host='" + server + '\'' +
+                    ", type=" + type +
+                    ", server='" + server + '\'' +
                     ", port=" + port +
+                    ", latency=" + latency +
                     '}';
         }
     }

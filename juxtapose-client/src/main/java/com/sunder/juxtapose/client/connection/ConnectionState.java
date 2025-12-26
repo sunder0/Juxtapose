@@ -26,6 +26,11 @@ public enum ConnectionState {
     AUTHENTICATED,
 
     /**
+     * 已做完所有准备工作，等待传输消息
+     */
+    READY,
+
+    /**
      * 活跃，正在处理业务
      */
     ACTIVE,
@@ -64,6 +69,7 @@ public enum ConnectionState {
             case CONNECTED:
                 return next == ConnectionState.AUTHENTICATING ||
                         next == ConnectionState.ACTIVE ||
+                        next == ConnectionState.READY ||
                         next == ConnectionState.AUTHENTICATED ||
                         next == ConnectionState.CLOSED;
             case AUTHENTICATING:
@@ -72,9 +78,15 @@ public enum ConnectionState {
                         next == ConnectionState.CLOSED;
             case AUTHENTICATED:
                 return next == ConnectionState.ACTIVE ||
+                        next == ConnectionState.READY ||
                         next == ConnectionState.CLOSED;
+            case READY:
+                return next == ConnectionState.CLOSED ||
+                        next == ConnectionState.ACTIVE ||
+                        next == ConnectionState.IDLE;
             case ACTIVE:
                 return next == ConnectionState.IDLE ||
+                        next == ConnectionState.READY ||
                         next == ConnectionState.SUSPENDED ||
                         next == ConnectionState.CLOSED;
             case IDLE:

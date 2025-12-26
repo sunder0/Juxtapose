@@ -12,7 +12,6 @@ import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -46,9 +45,8 @@ public class ProxyConnection implements Connection {
         this.state = ConnectionState.INIT;
         this.connectionStats = new ConnectionStats();
 
-        this.connectionContent = new ConnectionContent(protocol,
-                (InetSocketAddress) proxyRequest.getClientChannel().remoteAddress(), proxyRequest.getHost(),
-                proxyRequest.getPort());
+        this.connectionContent = new ConnectionContent(protocol, proxyRequest.getClientChannel().remoteAddress(),
+                proxyRequest.getHost(), proxyRequest.getPort());
     }
 
     @Override
@@ -99,6 +97,7 @@ public class ProxyConnection implements Connection {
             return;
         }
         this.proxyRequest.setProxyMessageReceiver(receiver);
+        changeState(ConnectionState.READY);
     }
 
     @Override
@@ -134,8 +133,8 @@ public class ProxyConnection implements Connection {
     public void updateActivityTime() {
         connectionStats.setLastActivityTime(System.currentTimeMillis());
         // 如果当前是IDLE或者AUTHENTICATED状态，有活动时恢复为ACTIVE状态
-        if (state == ConnectionState.IDLE ||
-                state == ConnectionState.AUTHENTICATED || state == ConnectionState.CONNECTED) {
+        if (state == ConnectionState.IDLE || state == ConnectionState.AUTHENTICATED
+                || state == ConnectionState.CONNECTED || state == ConnectionState.READY) {
             changeState(ConnectionState.ACTIVE);
         }
     }
@@ -215,12 +214,14 @@ public class ProxyConnection implements Connection {
 
     private boolean isReadableState() {
         return state == ConnectionState.AUTHENTICATED || state == ConnectionState.ACTIVE
-                || state == ConnectionState.IDLE || state == ConnectionState.CONNECTED;
+                || state == ConnectionState.IDLE || state == ConnectionState.CONNECTED
+                || state == ConnectionState.READY;
     }
 
     private boolean isWritableState() {
         return state == ConnectionState.AUTHENTICATED || state == ConnectionState.ACTIVE
-                || state == ConnectionState.IDLE || state == ConnectionState.CONNECTED;
+                || state == ConnectionState.IDLE || state == ConnectionState.CONNECTED
+                || state == ConnectionState.READY;
     }
 
 }

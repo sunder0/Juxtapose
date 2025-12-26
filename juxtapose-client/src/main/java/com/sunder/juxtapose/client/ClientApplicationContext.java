@@ -1,6 +1,7 @@
 package com.sunder.juxtapose.client;
 
 import com.sunder.juxtapose.client.system.SystemProxySettingAdapter;
+import com.sunder.juxtapose.common.ApplicationContext;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,9 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author : denglinhai
  * @date : 16:55 2025/09/23
  */
-public class SystemAppContext {
-    public final static SystemAppContext CONTEXT = new SystemAppContext();
-
+public class ClientApplicationContext implements ApplicationContext {
     private String profileUrl; // 目前只支持一个profile链接下载，
     private long uploadBytes; // 上行字节数 ，单位：B
     private long downloadBytes; // 下行字节数, 单位：B
@@ -22,7 +21,7 @@ public class SystemAppContext {
     private SystemProxySettingAdapter systemProxySetting; // 系统代理设置
     private ProxyServerNodeManager proxyNodeManager;
 
-    private SystemAppContext() {
+    public ClientApplicationContext() {
     }
 
     public void addSelectNode(String group, String node) {
@@ -62,7 +61,7 @@ public class SystemAppContext {
     }
 
     public void truncateAndLoadProxySubscribers() {
-        proxyNodeManager.truncateAndLoadProxySubscribers();
+        proxyNodeManager.refreshProxySubscribers();
     }
 
     public void registerProxyNodeManager(ProxyServerNodeManager proxyNodeManager) {

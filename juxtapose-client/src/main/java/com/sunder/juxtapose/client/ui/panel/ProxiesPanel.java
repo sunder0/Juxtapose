@@ -2,7 +2,8 @@ package com.sunder.juxtapose.client.ui.panel;
 
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
-import com.sunder.juxtapose.client.SystemAppContext;
+import com.sunder.juxtapose.client.ClientApplicationContext;
+import com.sunder.juxtapose.group.ProxyGroupType;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
@@ -58,6 +59,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
     private VBox mainPane;
     private ProxyServerConfig pscfg;
     private ProxyRuleConfig prcfg;
+    private ClientApplicationContext context;
 
     // Proxies相关组件
     private ListView<ProxyGroup> groupListView;
@@ -70,6 +72,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
         super("PROXIES_PANEL", belongComponent);
         this.pscfg = pscfg;
         this.prcfg = prcfg;
+        this.context = belongComponent.getApplicationContext(ClientApplicationContext.class);
 
         initializeProxyData();
         initializeUI();
@@ -101,10 +104,11 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
                     continue;
                 }
 
-                proxyNodesMap.get(group.name).add(new ProxyNode(nodeConfig.name, nodeConfig.type.name(), "10ms"));
+                proxyNodesMap.get(group.name).add(new ProxyNode(nodeConfig.name, nodeConfig.type.name(),
+                        nodeConfig.latency + "ms"));
             }
         }
-        this.selectedNodeMap = SystemAppContext.CONTEXT.getSelectNodes();
+        this.selectedNodeMap = context.getSelectNodes();
     }
 
     /**
@@ -218,14 +222,14 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             return;
         }
 
-        SystemAppContext.CONTEXT.setProfileUrl(urlString);
+        context.setProfileUrl(urlString);
         try (HttpResponse response = HttpUtil.createGet(urlString).execute()) {
             pscfg.loadYamlStream(response.bodyStream());
 
             // 清空现有数据
             clearAllProxyData();
             initializeProxyData();
-            SystemAppContext.CONTEXT.truncateAndLoadProxySubscribers();
+            context.truncateAndLoadProxySubscribers();
 
             showAlert(AlertType.INFORMATION, "Success", "Proxy configuration downloaded successfully");
             groupListView.refresh();
@@ -255,7 +259,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
                 clearAllProxyData();
                 initializeProxyData();
-                SystemAppContext.CONTEXT.truncateAndLoadProxySubscribers();
+                context.truncateAndLoadProxySubscribers();
 
                 showAlert(AlertType.INFORMATION, "Success",
                         "Proxy configuration imported successfully from " + selectedFile.getName());
@@ -626,11 +630,12 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             try {
                 String latencyStr = node.getLatency().replace("ms", "").trim();
                 int latency = Integer.parseInt(latencyStr);
-                if (latency < 100) {
+                if (latency < 2000) {
                     latencyLabel.setTextFill(Color.rgb(76, 175, 80)); // 绿色
-                } else if (latency < 300) {
+                } else if (latency < 5000) {
                     latencyLabel.setTextFill(Color.rgb(255, 152, 0)); // 橙色
                 } else {
+                    latencyLabel.setText("Timeout");
                     latencyLabel.setTextFill(Color.rgb(244, 67, 54)); // 红色
                 }
             } catch (NumberFormatException e) {
@@ -647,7 +652,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             setPadding(new Insets(10));
 
             // 只有select组才能选择节点
-            if (group.type.equals("select")) {
+            if (ProxyGroupType.SELECT.getVal().equalsIgnoreCase(group.type)) {
                 // 添加点击事件和动画
                 setOnMouseClicked(e -> {
                     selectNode();
@@ -701,7 +706,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             // 更新选中状态
             isSelected = true;
             selectedNodeMap.put(group.getName(), node.getName());
-            SystemAppContext.CONTEXT.addSelectNode(group.name, node.name);
+            context.addSelectNode(group.name, node.name);
 
             // 刷新列表以更新其他节点的选中状态
             groupListView.refresh();

@@ -52,7 +52,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
     }
 
     @Override
-    public void subscribe(ProxyRequest request) {
+    public Connection subscribe(ProxyRequest request) {
         Connection connection = connManager.createConnection(ProxyProtocol.DIRECT, request);
         bootstrap.clone().handler(new DirectForwardingHandler(connection))
                 .connect(request.getHost(), request.getPort()).addListener(f -> {
@@ -62,6 +62,8 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
                         logger.info("Direct connect address[{}:{}] failed!", request.getHost(), request.getPort(), f.cause());
                     }
                 });
+
+        return connection;
     }
 
     @Override

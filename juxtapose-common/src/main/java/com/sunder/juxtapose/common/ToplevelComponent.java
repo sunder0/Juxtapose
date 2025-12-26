@@ -7,8 +7,14 @@ package com.sunder.juxtapose.common;
  */
 public class ToplevelComponent extends BaseCompositeComponent<VoidComponent> {
 
-    public ToplevelComponent(String name) {
+    public ToplevelComponent(String name, ApplicationContext context) {
         super(name, new VoidComponent(), ComponentLifecycleListener.INSTANCE);
+        this.context = context;
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext context) {
+        this.context = context;
     }
 
 }

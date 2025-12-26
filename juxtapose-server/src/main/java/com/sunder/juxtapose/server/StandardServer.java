@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.server;
 
+import com.sunder.juxtapose.common.ApplicationContext;
 import com.sunder.juxtapose.common.DefaultConfigManager;
 import com.sunder.juxtapose.common.LogModule;
 import com.sunder.juxtapose.common.Platform;
@@ -17,7 +18,12 @@ public final class StandardServer extends ToplevelComponent {
     private final static Logger logger = LoggerFactory.getLogger(StandardServer.class);
 
     public StandardServer() {
-        super("STANDARD_SERVER");
+        super("STANDARD_SERVER", new ApplicationContext() {
+            @Override
+            public String toString() {
+                return super.toString();
+            }
+        });
     }
 
     @Override

@@ -1,9 +1,9 @@
 package com.sunder.juxtapose.client.ui;
 
 import cn.hutool.core.thread.ThreadFactoryBuilder;
+import com.sunder.juxtapose.client.ClientApplicationContext;
 import com.sunder.juxtapose.client.ClientOperate;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
-import com.sunder.juxtapose.client.SystemAppContext;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
@@ -60,12 +60,14 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
     private static Map<String, VBox> panels = new HashMap<>();
     private static HBox connectBox;
     private ClientOperate clientOperate;
+    private static ClientApplicationContext cac;
 
     public MainUIComponent(ProxyCoreComponent parent, ClientOperate clientOperate) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
         this.mainUIExecutor =
                 Executors.newSingleThreadExecutor(ThreadFactoryBuilder.create().setNamePrefix("main-ui-").build());
         this.clientOperate = clientOperate;
+        cac = (ClientApplicationContext) context;
     }
 
     @Override
@@ -77,9 +79,9 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
         connectBox = new HBox(5);
         addModule(new GeneralPanel(this, ccfg, clientOperate, connectBox));
 
-        ProxyServerConfig pscfg = configManager.getConfigByName(ProxyServerConfig.NAME, ProxyServerConfig.class);
-        ProxyRuleConfig prcfg = configManager.getConfigByName(ProxyRuleConfig.NAME, ProxyRuleConfig.class);
-        addModule(new ProxiesPanel(this, pscfg, prcfg));
+        // ProxyServerConfig pscfg = configManager.getConfigByName(ProxyServerConfig.NAME, ProxyServerConfig.class);
+        // ProxyRuleConfig prcfg = configManager.getConfigByName(ProxyRuleConfig.NAME, ProxyRuleConfig.class);
+        // addModule(new ProxiesPanel(this, pscfg, prcfg));
 
         LogModule<?> logModule = getModuleByName(LogModule.NAME, true, LogModule.class);
         addModule(new LogsPanel(this, ccfg, logModule));
@@ -87,6 +89,13 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
 
     @Override
     protected void startInternal() {
+        ConfigManager<?> configManager = getConfigManager();
+
+        ProxyServerConfig pscfg = configManager.getConfigByName(ProxyServerConfig.NAME, ProxyServerConfig.class);
+        ProxyRuleConfig prcfg = configManager.getConfigByName(ProxyRuleConfig.NAME, ProxyRuleConfig.class);
+        addModule(new ProxiesPanel(this, pscfg, prcfg));
+
+        // 启动UI线程
         mainUIExecutor.execute(() -> MainUI.launch(MainUI.class));
     }
 
@@ -181,8 +190,8 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
 
         // 更新上传下载速率（模拟数据）
         private void updateRates() {
-            double uploadRate = (double) SystemAppContext.CONTEXT.getUploadBytes() / 1024;
-            double downloadRate = (double) SystemAppContext.CONTEXT.getDownloadBytes() / 1024;
+            double uploadRate = (double) cac.getUploadBytes() / 1024;
+            double downloadRate = (double) cac.getDownloadBytes() / 1024;
 
             if (rateDisplay != null) {
                 rateDisplay.updateRates(uploadRate, downloadRate);

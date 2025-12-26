@@ -67,4 +67,41 @@ public interface Component<T extends Component<?>> extends Lifecycle, Named {
      */
     void addModule(Module<?> module);
 
+    /**
+     * 获取应用上下文
+     *
+     * @return com.sunder.juxtapose.common.ApplicationContext
+     */
+    ApplicationContext getApplicationContext();
+
+    /**
+     * 获取应用上下文
+     *
+     * @param requireType 具体上下文实例类型
+     * @return com.sunder.juxtapose.common.ApplicationContext
+     */
+    @SuppressWarnings("unchecked")
+    default <V extends ApplicationContext> V getApplicationContext(Class<V> requireType) {
+        ApplicationContext ac = getApplicationContext();
+        if (ac == null) {
+            return null;
+        }
+
+        if (requireType.isInstance(ac)) {
+            return (V) ac;
+        }
+
+        throw new ComponentException(new ClassCastException(
+                String.format("ApplicationContext [%s] is not type of %s.", getName(), requireType.getName())));
+    }
+
+    /**
+     * 设置应用上下文
+     *
+     * @param context com.sunder.juxtapose.common.ApplicationContext
+     */
+    default void setApplicationContext(ApplicationContext context) {
+        throw new UnsupportedOperationException();
+    }
+
 }
