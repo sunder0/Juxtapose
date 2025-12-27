@@ -7,7 +7,6 @@ import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.connection.Connection;
 import com.sunder.juxtapose.client.connection.ConnectionState;
 import com.sunder.juxtapose.client.connection.ConnectionStateListener;
-import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -73,12 +72,9 @@ public class ProxyServerUrlTestVisitor {
         try {
             // 订阅请求并获取连接
             connection = subscriber.subscribe(request);
-
             // 等待连接就绪
-            if (subscriber.proxyProtocol() == ProxyProtocol.HTTP) {
-                connection.addConnectionStateListener(readyListener);
-                connectionReady.get(10, TimeUnit.SECONDS);
-            }
+            connection.addConnectionStateListener(readyListener);
+            connectionReady.get(10, TimeUnit.SECONDS);
 
             // 等待测试url返回
             long ping = System.currentTimeMillis();
