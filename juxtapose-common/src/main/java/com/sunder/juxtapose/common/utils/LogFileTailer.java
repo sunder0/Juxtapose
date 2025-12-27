@@ -1,6 +1,7 @@
 package com.sunder.juxtapose.common.utils;
 
 import cn.hutool.core.thread.ThreadFactoryBuilder;
+import com.sunder.juxtapose.common.Platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +32,7 @@ public class LogFileTailer {
 
     public LogFileTailer(String filePath) {
         this.logger = LoggerFactory.getLogger(LogFileTailer.class);
-        this.logFile = Paths.get(filePath);
+        this.logFile = Paths.get(Platform.isWindows() ? filePath.substring(1) : filePath);
         this.executor = Executors.newSingleThreadExecutor(
                 ThreadFactoryBuilder.create().setNamePrefix("logs-tailer-").build());
     }
@@ -58,11 +59,14 @@ public class LogFileTailer {
      */
     private void readExistingLogs(Consumer<String> consumer) throws IOException {
         try (RandomAccessFile file = new RandomAccessFile(logFile.toFile(), "r")) {
-            String line;
-            while ((line = file.readLine()) != null) {
-                consumer.accept(line);
-            }
-            lastPosition = file.getFilePointer();
+            // 直接跳过所有的日志，读取最新的，否则可能日志过大导致UI卡住
+//            String line;
+//            while ((line = file.readLine()) != null) {
+//                consumer.accept(line);
+//            }
+//
+//            lastPosition = file.getFilePointer();
+            lastPosition = file.length();
         }
     }
 

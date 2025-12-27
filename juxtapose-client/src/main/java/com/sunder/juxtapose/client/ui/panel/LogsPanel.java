@@ -2,21 +2,23 @@ package com.sunder.juxtapose.client.ui.panel;
 
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.ui.MainUIComponent;
-import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
-import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
 import com.sunder.juxtapose.common.BaseModule;
 import com.sunder.juxtapose.common.LogModule;
 import com.sunder.juxtapose.common.utils.LogFileTailer;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.TextArea;
+import javafx.scene.control.ListView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
+import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
+import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
 
 /**
  * @author : denglinhai
@@ -24,14 +26,20 @@ import java.io.FileReader;
  */
 public class LogsPanel extends BaseModule<MainUIComponent> {
 
+    private final Logger logger;
     private VBox mainPane;
     private ClientConfig ccfg;
     private LogModule<?> logModule;
+    // 定义最大日志行数
+    private static final int MAX_LOG_LINES = 2000;
+    // 定义ObservableList作为ListView的数据源（存储日志行）
+    private ObservableList<String> logItems = FXCollections.observableArrayList();
 
     public LogsPanel(MainUIComponent belongComponent, ClientConfig ccfg, LogModule<?> logModule) {
         super("LOGS_PANEL", belongComponent);
         this.ccfg = ccfg;
         this.logModule = logModule;
+        this.logger = LoggerFactory.getLogger(LogsPanel.class);
         initialize();
     }
 
@@ -50,8 +58,9 @@ public class LogsPanel extends BaseModule<MainUIComponent> {
         logLevelBox.getChildren().addAll(clearLogsBtn);
 
         // 日志区域
-        TextArea logArea = new TextArea();
-        logArea.setStyle(
+        ListView<String> logListView = new ListView<>(logItems);
+        logListView.setPrefHeight(350);
+        logListView.setStyle(
                 "-fx-control-inner-background: white; " +
                         "-fx-text-fill: #495057; " +
                         "-fx-border-color: #ced4da; " +
@@ -59,26 +68,28 @@ public class LogsPanel extends BaseModule<MainUIComponent> {
                         "-fx-font-family: 'Consolas'; " +
                         "-fx-font-size: 11px;"
         );
-        logArea.setPrefHeight(350);
-        logArea.setEditable(false);
 
         String logPath = logModule.getCurrentLogPath();
-        try (BufferedReader br = new BufferedReader(new FileReader(logPath))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                logArea.appendText(line + "\n");
-            }
+        LogFileTailer logTailer = new LogFileTailer(logPath);
+        try {
+            logTailer.start(line -> Platform.runLater(() -> {
+                // 达到上限移除旧日志
+                if (logItems.size() >= MAX_LOG_LINES) {
+                    logItems.remove(0);
+                }
 
-            LogFileTailer logTailer = new LogFileTailer(logPath);
-            logTailer.start(line1 -> Platform.runLater(() -> logArea.appendText(line1 + "\n")));
-        } catch (Exception ignore) {
+                logItems.add(line);
+                logListView.scrollTo(logItems.size() - 1);
+            }));
+        } catch (Exception ex) {
+            logger.error("Log appending configuration failed", ex);
         }
 
         clearLogsBtn.setOnMouseClicked(e -> {
-            logArea.setText("");
+            logItems.clear();
         });
 
-        mainPane.getChildren().addAll(logLevelBox, logArea);
+        mainPane.getChildren().addAll(logLevelBox, logListView);
         belongComponent.registerVbox("Logs", mainPane);
     }
 
