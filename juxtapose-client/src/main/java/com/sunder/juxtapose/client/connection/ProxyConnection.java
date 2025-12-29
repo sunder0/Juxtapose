@@ -107,6 +107,10 @@ public class ProxyConnection implements Connection {
         } else {
             logger.warn("Attempted client -> proxy node send message in non-writable state: {}, channel active: {}",
                     state, proxyChannel.isActive());
+            if (!proxyChannel.isActive()) {
+                logger.info("Proxy channel closed, terminating the connection[{}].", connectId);
+                close();
+            }
             if (message instanceof ByteBuf) {
                 ReferenceCountUtil.release(message);
             }
@@ -122,6 +126,10 @@ public class ProxyConnection implements Connection {
         } else {
             logger.warn("Attempted proxy node -> client send message in non-writable state: {}, channel active: {}",
                     state, proxyRequest.isActive());
+            if (!proxyRequest.isActive()) {
+                logger.info("Client channel closed, terminating the connection[{}].", connectId);
+                close();
+            }
             if (message instanceof ByteBuf) {
                 ReferenceCountUtil.release(message);
             }

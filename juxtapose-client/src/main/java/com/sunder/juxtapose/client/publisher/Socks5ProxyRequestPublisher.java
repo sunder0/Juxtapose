@@ -185,7 +185,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                             processCommandRequest(ctx, host, port, host, ip, request.addressType(), request.cmdType());
                         } else {
                             logger.error("Unknown Host[{}] error.", host, f.cause());
-                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.HOST_UNREACHABLE,
+                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.ADDRESS_NOT_SUPPORTED,
                                     request.addressType())).addListener(ChannelFutureListener.CLOSE);
                         }
                     });
@@ -224,6 +224,8 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                             ctx.pipeline().addLast(new TcpProxyMessageHandler(pr));
                             ctx.pipeline().remove(SocksRequestHandler.this);
                             ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, addressType));
+                        } else {
+                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.FAILURE, addressType));
                         }
                     });
                 }

@@ -3,7 +3,7 @@ package com.sunder.juxtapose.client.ui.panel;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
 import com.sunder.juxtapose.client.ClientApplicationContext;
-import com.sunder.juxtapose.group.ProxyGroupType;
+import com.sunder.juxtapose.client.group.ProxyGroupType;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;

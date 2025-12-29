@@ -1,6 +1,8 @@
 package com.sunder.juxtapose.client.rule;
 
 import com.sunder.juxtapose.common.ProxyAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 
@@ -131,12 +133,14 @@ public interface ProxyRule {
      * GEOIP库查询规则
      */
     class GeoIPProxyRule implements ProxyRule {
+        private final Logger logger ;
         private final String countryCode;
         private final ProxyAction action;
         private final GeoIPDatabase GEOIPDB;
         private final String proxyGroup;
 
         public GeoIPProxyRule(String countryCode, ProxyAction action, String proxyGroup, GeoIPDatabase geoIPDB) {
+            this.logger = LoggerFactory.getLogger(ProxyRule.class);
             this.countryCode = countryCode;
             this.action = action;
             this.proxyGroup = proxyGroup;
@@ -145,6 +149,10 @@ public interface ProxyRule {
 
         @Override
         public boolean matches(String domain, InetAddress ip, int port) {
+            if (GEOIPDB == null) {
+                logger.error("GEOIP DB is null!");
+                return "CN".equalsIgnoreCase(countryCode);
+            }
             return GEOIPDB.country(ip).equalsIgnoreCase(countryCode);
         }
 

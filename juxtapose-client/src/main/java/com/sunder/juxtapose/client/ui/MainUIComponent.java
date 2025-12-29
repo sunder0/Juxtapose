@@ -7,6 +7,7 @@ import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
+import static com.sunder.juxtapose.client.ui.UIUtils.createMinimizeAlert;
 import com.sunder.juxtapose.client.ui.def.RateDisplay;
 import com.sunder.juxtapose.client.ui.panel.GeneralPanel;
 import com.sunder.juxtapose.client.ui.panel.LogsPanel;
@@ -48,8 +49,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-import static com.sunder.juxtapose.client.ui.UIUtils.createMinimizeAlert;
-
 /**
  * @author : denglinhai
  * @date : 10:13 2025/09/22
@@ -57,9 +56,11 @@ import static com.sunder.juxtapose.client.ui.UIUtils.createMinimizeAlert;
 public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
     public final static String NAME = "MAIN_UI_COMPONENT";
 
+    private static ClientConfig ccfg;
     private final Executor mainUIExecutor;
     private static Map<String, VBox> panels = new HashMap<>();
     private static HBox connectBox;
+    private static RateDisplay rateDisplay; // 使用独立的速率显示组件
     private ClientOperate clientOperate;
     private static ClientApplicationContext cac;
 
@@ -76,9 +77,10 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
         new JFXPanel(); // 主要是初始化JavaFx组件
         ConfigManager<?> configManager = getConfigManager();
 
-        ClientConfig ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);
+        ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);
         connectBox = new HBox(5);
-        addModule(new GeneralPanel(this, ccfg, clientOperate, connectBox));
+        rateDisplay = new RateDisplay();
+        addModule(new GeneralPanel(this, ccfg, clientOperate, connectBox, rateDisplay));
 
         LogModule<?> logModule = getModuleByName(LogModule.NAME, true, LogModule.class);
         addModule(new LogsPanel(this, ccfg, logModule));
@@ -108,7 +110,6 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
      */
     public static class MainUI extends Application {
         StackPane contentArea;
-        RateDisplay rateDisplay;
         Timeline timeline;
 
         @Override
@@ -209,9 +210,6 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             statusBar.setSpacing(15);
             statusBar.setAlignment(Pos.CENTER_LEFT);
 
-            // 使用独立的速率显示组件
-            rateDisplay = new RateDisplay();
-
             // 标题
             Label title = new Label("JUXTAPOSE");
             title.setFont(Font.font("Segoe UI", 19));
@@ -281,12 +279,21 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             connectBox.setAlignment(Pos.CENTER); // 居中显示
             connectBox.setStyle("-fx-background-color: #e3f2fd;");
 
-            Circle statusIndicator = new Circle(5, Color.rgb(150, 150, 150));
-            Label connectLabel = new Label("PENDING");
-            connectLabel.setTextFill(Color.rgb(33, 150, 243));
-            connectLabel.setFont(Font.font("Segoe UI", 12));
-            connectLabel.setStyle("-fx-font-weight: 500;");
-            connectBox.getChildren().addAll(statusIndicator, connectLabel);
+            if (ccfg.getProxyEnable()) {
+                Circle statusIndicator = new Circle(5, Color.rgb(76, 175, 80));
+                Label connectLabel = new Label("RUNNING");
+                connectLabel.setTextFill(Color.rgb(33, 150, 243));
+                connectLabel.setFont(Font.font("Segoe UI", 12));
+                connectLabel.setStyle("-fx-font-weight: 500;");
+                connectBox.getChildren().addAll(statusIndicator, connectLabel);
+            } else {
+                Circle statusIndicator = new Circle(5, Color.rgb(150, 150, 150));
+                Label connectLabel = new Label("PENDING");
+                connectLabel.setTextFill(Color.rgb(33, 150, 243));
+                connectLabel.setFont(Font.font("Segoe UI", 12));
+                connectLabel.setStyle("-fx-font-weight: 500;");
+                connectBox.getChildren().addAll(statusIndicator, connectLabel);
+            }
 
             navigation.getChildren().addAll(spacer, connectBox);
 

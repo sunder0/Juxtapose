@@ -1,4 +1,4 @@
-package com.sunder.juxtapose.group;
+package com.sunder.juxtapose.client.group;
 
 import cn.hutool.core.lang.Pair;
 import com.sunder.juxtapose.client.ProxyRequest;

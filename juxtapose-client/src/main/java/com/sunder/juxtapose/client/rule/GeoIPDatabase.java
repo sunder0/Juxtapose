@@ -33,7 +33,11 @@ public class GeoIPDatabase {
             CountryResponse response = geoIPReader.country(inetAddress);
             return response.getCountry().getIsoCode();
         } catch (Exception ex) {
-            logger.warn("Query GeoIp db error[{}], [{}].", inetAddress.toString(), ex.getMessage());
+            if (inetAddress == null) {
+                logger.warn("Query GeoIp db error, inetAddress is null.", ex);
+                return "CN";
+            }
+            logger.warn("Query GeoIp db error[{}], [{}].", inetAddress, ex.getMessage());
             return "CN";
         }
     }

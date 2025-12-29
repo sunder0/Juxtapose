@@ -9,6 +9,7 @@ import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
 import static com.sunder.juxtapose.client.ui.UIUtils.createSettingSection;
 import static com.sunder.juxtapose.client.ui.UIUtils.createToggleSetting;
 import static com.sunder.juxtapose.client.ui.UIUtils.styleComboBox;
+import com.sunder.juxtapose.client.ui.def.RateDisplay;
 import com.sunder.juxtapose.common.BaseModule;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -30,14 +31,16 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
     private ClientOperate clientOperate;
     private VBox mainPane;
     private HBox connectBox;
+    private RateDisplay rateDisplay;
     private ClientApplicationContext context;
 
     public GeneralPanel(MainUIComponent belongComponent, ClientConfig ccfg, ClientOperate clientOperate,
-            HBox connectBox) {
+            HBox connectBox, RateDisplay rateDisplay) {
         super("GENERAL_PANEL", belongComponent);
         this.ccfg = ccfg;
         this.clientOperate = clientOperate;
         this.connectBox = connectBox;
+        this.rateDisplay = rateDisplay;
         this.context = belongComponent.getApplicationContext(ClientApplicationContext.class);
         initialize();
     }
@@ -94,6 +97,8 @@ public class GeneralPanel extends BaseModule<MainUIComponent> {
 
                         connectBox.getChildren().set(0, statusIndicator);
                         connectBox.getChildren().set(1, connectLabel);
+
+                        rateDisplay.updateRates(0f, 0f);
                     }
                 })
         );

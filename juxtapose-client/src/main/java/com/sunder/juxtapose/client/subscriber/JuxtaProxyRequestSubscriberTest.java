@@ -7,7 +7,6 @@ import com.sunder.juxtapose.client.ProxyRequestSubscriber;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.connection.Connection;
-import com.sunder.juxtapose.client.connection.ConnectionState;
 import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
@@ -32,6 +31,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.traffic.ChannelTrafficShapingHandler;
@@ -43,16 +43,20 @@ import java.util.Objects;
  * @author : denglinhai
  * @date : 15:38 2023/7/5
  */
-public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
+public class JuxtaProxyRequestSubscriberTest extends BaseComponent<ProxyServerNodeManager>
         implements ProxyRequestSubscriber, ProxyMessageReceiver, ProxyNodeLatencyTest {
     public final static String NAME = "JUXTA_PROXY_SERVER";
 
-    private Bootstrap bootstrap;
+    private Class<? extends SocketChannel> socketChannel;
+    private EventLoopGroup eventLoopGroup;
+
     private final ProxyServerNodeConfig cfg;
     private CertComponent certComponent;
     private DefaultConnectionManager connManager;
+    private SocketChannel relayChannel; // 和中继服务器通信的channel
+    private ChannelTrafficShapingHandler trafficShapingHandler;
 
-    public JuxtaProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
+    public JuxtaProxyRequestSubscriberTest(ProxyServerNodeConfig cfg, CertComponent certComponent,
             ProxyServerNodeManager parent) {
         super(cfg.name, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         this.cfg = cfg;
@@ -63,35 +67,48 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
     @Override
     protected void initInternal() {
-        Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(Platform.createEventLoopGroup(2))
-                .channel(Platform.socketChannelClass())
-                .option(ChannelOption.SO_KEEPALIVE, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
-        bootstrap.handler(new ChannelInitializer<SocketChannel>() {
-            @Override
-            protected void initChannel(SocketChannel socketChannel) throws Exception {
-                ChannelPipeline pipeline = socketChannel.pipeline();
-                pipeline.addLast(new ChannelTrafficShapingHandler(1000));
-                if (cfg.tls) {
-                    pipeline.addLast(
-                            certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
-                }
-                pipeline.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
-                        Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
-                pipeline.addLast(RelayMessageWriteEncoder.INSTANCE);
-            }
-        });
+        connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
 
-        this.bootstrap = bootstrap;
-        this.connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
+        this.socketChannel = Platform.socketChannelClass();
+        this.eventLoopGroup = Platform.createEventLoopGroup(2);
 
         super.initInternal();
     }
 
     @Override
     protected void startInternal() {
-        cfg.latency = testLatency();
+        try {
+            Bootstrap bootstrap = new Bootstrap();
+            bootstrap.group(eventLoopGroup)
+                    .channel(socketChannel)
+                    .option(ChannelOption.SO_KEEPALIVE, true)
+                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
+            bootstrap.handler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                protected void initChannel(SocketChannel socketChannel) throws Exception {
+                    ChannelPipeline pipeline = socketChannel.pipeline();
+                    pipeline.addLast(trafficShapingHandler = new ChannelTrafficShapingHandler(1000));
+                    if (cfg.tls) {
+                        pipeline.addLast(
+                                certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
+                    }
+                    pipeline.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
+                            Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
+                    pipeline.addLast(new ProxyRelayMessageHandler());
+                    pipeline.addLast(RelayMessageWriteEncoder.INSTANCE);
+                }
+            }).connect(cfg.server, cfg.port).await().addListener(f -> {
+                if (f.isSuccess()) {
+                    logger.info("Connect Juxta proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
+                } else {
+                    logger.info("Connect Juxta proxy relay server[{}:{}] failed!", cfg.server, cfg.port, f.cause());
+                }
+            });
+        } catch (Exception ex) {
+            throw new ComponentException("Start ProxyRelayServerComponent failed!", ex);
+        }
+
+        super.startInternal();
     }
 
     @Override
@@ -103,25 +120,12 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
     @Override
     public Connection subscribe(ProxyRequest request) {
-        try {
-            Connection connection = connManager.createConnection(ProxyProtocol.JUXTA, request);
-            bootstrap.clone().connect(cfg.server, cfg.port).addListener((ChannelFutureListener) cf -> {
-                if (cf.isSuccess()) {
-                    cf.channel().pipeline().addLast(new ProxyRelayMessageHandler(connection));
-                    ChannelTrafficShapingHandler trafficHandler =
-                            cf.channel().pipeline().get(ChannelTrafficShapingHandler.class);
-                    connection.bindTrafficCounter(trafficHandler.trafficCounter());
+        Connection connection = connManager.createConnection(ProxyProtocol.JUXTA, request);
+        connection.bindProxyChannel(relayChannel);
+        connection.bindTrafficCounter(trafficShapingHandler.trafficCounter());
+        connection.activeMessageTransfer(this);
 
-                    logger.info("Connect Juxta proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
-                } else {
-                    logger.info("Connect Juxta proxy relay server[{}:{}] failed!", cfg.server, cfg.port, cf.cause());
-                }
-            }).await();
-
-            return connection;
-        } catch (Exception ex) {
-            throw new ComponentException("Start ProxyRelayServerComponent failed!", ex);
-        }
+        return connection;
     }
 
     @Override
@@ -143,24 +147,17 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
      * 与代理服务器通信
      */
     private class ProxyRelayMessageHandler extends ChannelInboundHandlerAdapter {
-        private Connection connection;
-
-        public ProxyRelayMessageHandler(Connection connection) {
-            this.connection = connection;
-        }
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            connection.bindProxyChannel((SocketChannel) ctx.channel());
-
             if (cfg.auth) {
-                connection.changeState(ConnectionState.AUTHENTICATING);
                 AuthRequestMessage message = new AuthRequestMessage(cfg.username, cfg.password);
                 ctx.channel().writeAndFlush(message);
             } else {
-                connection.activeMessageTransfer(JuxtaProxyRequestSubscriber.this);
+                // nothing to do...
             }
 
+            JuxtaProxyRequestSubscriberTest.this.relayChannel = (SocketChannel) ctx.channel();
             ctx.fireChannelActive();
         }
 
@@ -190,18 +187,17 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
             if (!message.isPassed()) {
                 logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.server, cfg.port,
                         message.getMessage());
-                connection.close();
-                JuxtaProxyRequestSubscriber.this.destroy();
+                ctx.close();
+                JuxtaProxyRequestSubscriberTest.this.destroy();
             } else {
-                connection.changeState(ConnectionState.AUTHENTICATED);
-                connection.activeMessageTransfer(JuxtaProxyRequestSubscriber.this);
+                // nothing to do...
             }
         }
 
         private void handleProxyResponseMessage(ChannelHandlerContext ctx, ProxyResponseMessage message) {
             logger.debug("receive proxy server message...[{}]", message.getSerialId());
             if (message.isSuccess()) {
-                DefaultConnectionManager connManager = JuxtaProxyRequestSubscriber.this.connManager;
+                DefaultConnectionManager connManager = JuxtaProxyRequestSubscriberTest.this.connManager;
                 Connection connection = connManager.getConnection(message.getSerialId().toString());
                 if (connection != null) {
                     connection.readMessage(message.getContent());
@@ -217,7 +213,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
             ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                JuxtaProxyRequestSubscriber.this.destroy();
+                JuxtaProxyRequestSubscriberTest.this.destroy();
             });
         }
     }
