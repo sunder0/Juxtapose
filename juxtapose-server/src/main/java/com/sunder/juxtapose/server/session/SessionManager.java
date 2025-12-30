@@ -12,7 +12,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 12:11 2025/08/26
  */
 public class SessionManager extends BaseModule<ProxyCoreComponent> {
@@ -29,8 +29,8 @@ public class SessionManager extends BaseModule<ProxyCoreComponent> {
         this.executor = new ScheduledThreadPoolExecutor(2,
                 ThreadFactoryBuilder.create().setNamePrefix("SessionManage-").build());
 
-        this.executor.scheduleAtFixedRate(this::cleanupExpiredSessions, 5, 60, TimeUnit.SECONDS);
-        this.executor.scheduleAtFixedRate(this::showClientSessionStatics, 1, 10, TimeUnit.SECONDS);
+        // this.executor.scheduleAtFixedRate(this::cleanupExpiredSessions, 5, 60, TimeUnit.SECONDS);
+        // this.executor.scheduleAtFixedRate(this::showClientSessionStatics, 1, 10, TimeUnit.SECONDS);
     }
 
     public void addSession(ClientSession session) {
@@ -51,6 +51,7 @@ public class SessionManager extends BaseModule<ProxyCoreComponent> {
     public ClientSession removeSession(String sessionId) {
         ClientSession session = sessionMap.remove(sessionId);
 
+        session.close();
         logger.info("Session removed:[{}], remaining:[{}]", sessionId, sessionMap.size());
         return session;
     }

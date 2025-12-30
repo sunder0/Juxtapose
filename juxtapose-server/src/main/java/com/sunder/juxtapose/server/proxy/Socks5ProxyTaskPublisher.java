@@ -15,9 +15,6 @@ import com.sunder.juxtapose.server.ProxyCoreComponent;
 import com.sunder.juxtapose.server.ProxyTaskPublisher;
 import com.sunder.juxtapose.server.ProxyTaskRequest;
 import com.sunder.juxtapose.server.conf.ServerConfig;
-import com.sunder.juxtapose.server.session.ClientSession;
-import com.sunder.juxtapose.server.session.SessionManager;
-import com.sunder.juxtapose.server.session.SessionState;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
@@ -45,7 +42,7 @@ import io.netty.handler.codec.socks.SocksMessageEncoder;
 import io.netty.handler.codec.socks.SocksRequest;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 19:36 2025/08/26
  */
 public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> implements ProxyTaskPublisher {
@@ -54,6 +51,7 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
     private String host;
     private int port;
     private boolean auth; // 是否开启了鉴权
+    private boolean tls; // 是否开启ssl加密
     private String userName;
     private String password;
     private EventLoopGroup bossGroup;
@@ -61,7 +59,6 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
     private Class<? extends ServerSocketChannel> serverSocketChannel;
 
     private final IdGenerator idGenerator;
-    private SessionManager sessionManager;
     private CertComponent certComponent;
 
     public Socks5ProxyTaskPublisher(ProxyCoreComponent parent) {
@@ -75,6 +72,7 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
         this.host = cfg.getProxyHost();
         this.port = cfg.getProxyPort();
         this.auth = cfg.getProxyAuth();
+        this.tls = cfg.getProxyTls();
         if (this.auth) {
             this.userName = cfg.getProxyUserName();
             this.password = cfg.getProxyPassword();
@@ -84,7 +82,6 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
         this.workGroup = Platform.createEventLoopGroup(4);
         this.serverSocketChannel = Platform.serverSocketChannelClass();
 
-        sessionManager = getModuleByName(SessionManager.NAME, true, SessionManager.class);
         certComponent = getParentComponent().getChildComponentByName(CertComponent.NAME, CertComponent.class);
 
         super.initInternal();
@@ -100,7 +97,9 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
                         @Override
                         protected void initChannel(SocketChannel channel) {
                             ChannelPipeline pipeline = channel.pipeline();
-                            // pipeline.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
+                            if (tls) {
+                                pipeline.addLast(certComponent.getSslContext().newHandler(channel.alloc()));
+                            }
                             pipeline.addLast(new SocksInitRequestDecoder());
                             pipeline.addLast(new SocksMessageEncoder());
                             pipeline.addLast(new SocksRequestHandler());
@@ -132,7 +131,6 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
         private final boolean auth; // 是否需要鉴权
         private AuthenticationStrategy authStrategy;
         private boolean authPass; // 鉴权通过
-        private ClientSession clientSession;
 
         public SocksRequestHandler() {
             this.auth = Socks5ProxyTaskPublisher.this.auth;
@@ -145,10 +143,6 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            String sessionId = ctx.channel().id().asShortText();
-            clientSession = ClientSession.buildChannelBoundSession(sessionId, (SocketChannel) ctx.channel());
-            Socks5ProxyTaskPublisher.this.sessionManager.addSession(clientSession);
-
             super.channelActive(ctx);
         }
 
@@ -159,11 +153,9 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
                 case INIT: {  // 如果是Socks5初始化请求
                     logger.info("Socks init...");
                     if (!auth) {
-                        clientSession.changeState(SessionState.AUTHENTICATED);
                         cp.addFirst(new SocksCmdRequestDecoder());
                         ctx.writeAndFlush(new SocksInitResponse(SocksAuthScheme.NO_AUTH));
                     } else {
-                        clientSession.changeState(SessionState.AUTHENTICATING);
                         cp.addFirst(new SocksAuthRequestDecoder());
                         ctx.writeAndFlush(new SocksInitResponse(SocksAuthScheme.AUTH_PASSWORD));
                     }
@@ -176,7 +168,6 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
                 }
                 case CMD: {  // 如果是Socks5命令请求
                     if (!authPass) {
-                        clientSession.changeState(SessionState.DISCONNECTED);
                         ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.FORBIDDEN, SocksAddressType.IPv4))
                                 .addListener(ChannelFutureListener.CLOSE);
                         return;
@@ -203,10 +194,9 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
             switch (request.cmdType()) {
                 case CONNECT: {
                     logger.info("connect cmd...");
-                    clientSession.updateActivityTime();
 
                     long serialId = idGenerator.nextId();
-                    ctx.pipeline().addLast(new SocksRelayHandler(serialId, host, port, clientSession)).remove(this);
+                    ctx.pipeline().addLast(new SocksRelayHandler(serialId, host, port)).remove(this);
                     ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, request.addressType()));
                 }
                 break;
@@ -249,11 +239,9 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
                 logger.info("Socks5 auth success.");
                 authPass = true;
 
-                clientSession.changeState(SessionState.AUTHENTICATED);
                 ctx.pipeline().addFirst(new SocksCmdRequestDecoder());
                 ctx.writeAndFlush(new SocksAuthResponse(SocksAuthStatus.SUCCESS));
             } else {
-                clientSession.changeState(SessionState.DISCONNECTED);
                 ctx.writeAndFlush(new SocksAuthResponse(SocksAuthStatus.FAILURE))
                         .addListener(ChannelFutureListener.CLOSE);
             }
@@ -267,13 +255,11 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
         private long serialId;
         private String proxyHost;
         private Integer proxyPort;
-        private ClientSession clientSession;
 
-        public SocksRelayHandler(long serialId, String proxyHost, Integer proxyPort, ClientSession clientSession) {
+        public SocksRelayHandler(long serialId, String proxyHost, Integer proxyPort) {
             this.serialId = serialId;
             this.proxyHost = proxyHost;
             this.proxyPort = proxyPort;
-            this.clientSession = clientSession;
         }
 
         @Override
@@ -290,7 +276,7 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ByteBuf) {
                 ProxyRequestMessage message = new ProxyRequestMessage(serialId, proxyHost, proxyPort, (ByteBuf) msg);
-                ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.SOCKS5, message, clientSession);
+                ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.SOCKS5, message, ctx.channel());
                 Socks5ProxyTaskPublisher.this.publishProxyTask(ptr);
             } else {
                 ctx.fireChannelRead(msg);

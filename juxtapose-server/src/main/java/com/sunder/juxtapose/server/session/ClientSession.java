@@ -14,7 +14,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:33 2025/08/26
  *         客户端关联的session
  */
@@ -93,7 +93,7 @@ public class ClientSession implements Session {
                 } else {
                     logger.warn("Failed to send message to session {}", sessionId, future.cause());
                     // 发送失败，可能需要关闭连接
-                    changeState(SessionState.DISCONNECTED);
+                    changeState(SessionState.CLOSED);
                 }
             });
         } else {

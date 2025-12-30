@@ -21,7 +21,6 @@ import com.sunder.juxtapose.server.ProxyTaskRequest;
 import com.sunder.juxtapose.server.conf.ServerConfig;
 import com.sunder.juxtapose.server.session.ClientSession;
 import com.sunder.juxtapose.server.session.SessionManager;
-import com.sunder.juxtapose.server.session.SessionState;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
@@ -33,12 +32,17 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.ServerSocketChannel;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
+
+import java.util.concurrent.TimeUnit;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 19:35 2025/08/26
  */
-public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher {
+public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent>
+        implements ProxyTaskPublisher {
     public final static String NAME = "USER_DEF_PROXY_COMPONENT";
 
     private String host;
@@ -51,7 +55,6 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
     private EventLoopGroup bossGroup;
     private EventLoopGroup workGroup;
     private Class<? extends ServerSocketChannel> serverSocketChannel;
-    private SessionManager sessionManager;
 
     public JuxtaProxyTaskPublisher(ProxyCoreComponent parent) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
@@ -73,7 +76,6 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
         workGroup = Platform.createEventLoopGroup(4);
         serverSocketChannel = Platform.serverSocketChannelClass();
 
-        sessionManager = getModuleByName(SessionManager.NAME, true, SessionManager.class);
         certComponent = getParentComponent().getChildComponentByName(CertComponent.NAME, CertComponent.class);
 
         super.initInternal();
@@ -95,7 +97,7 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
                             cp.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                                     Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                             cp.addLast(RelayMessageWriteEncoder.INSTANCE);
-                            cp.addLast(new ClientSessionHandler());
+                            cp.addLast(new AuthMessageHandler());
                             cp.addLast(new ProxyRelayMessageHandler());
                         }
                     });
@@ -118,14 +120,62 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
         parent.getDispatcher().publishProxyTask(request);
     }
 
-    private class ClientSessionHandler extends ChannelInboundHandlerAdapter {
-        private final boolean auth;
+    /**
+     * 心跳检测处理
+     */
+    private class HeartbeatHandler extends ChannelInboundHandlerAdapter {
         private final SessionManager sessionManager;
+
+        public HeartbeatHandler(SessionManager sessionManager) {
+            this.sessionManager = sessionManager;
+        }
+
+        @Override
+        public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+            // 60秒读空闲，超过视作关闭连接
+            ctx.pipeline().addLast(new IdleStateHandler(60, 0, 0, TimeUnit.SECONDS));
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if (evt instanceof IdleStateEvent) {
+                IdleStateEvent event = (IdleStateEvent) evt;
+
+                switch (event.state()) {
+                    case READER_IDLE:
+                        handleReaderIdle(ctx);
+                        break;
+                    case WRITER_IDLE:
+                    case ALL_IDLE:
+                        break;
+                }
+            } else {
+                super.userEventTriggered(ctx, evt);
+            }
+        }
+
+        /**
+         * 处理读取超时，现默认客户端已经断开，降低内存使用
+         *
+         * @param ctx io.netty.channel.ChannelHandlerContext
+         */
+        private void handleReaderIdle(ChannelHandlerContext ctx) {
+            String sessionId = ctx.channel().id().asShortText();
+            ClientSession session = sessionManager.getSession(sessionId);
+            session.close();
+        }
+
+    }
+
+    /**
+     * 鉴权处理器
+     */
+    private class AuthMessageHandler extends ChannelInboundHandlerAdapter {
+        private final boolean auth;
         private AuthenticationStrategy authStrategy;
 
-        public ClientSessionHandler() {
+        public AuthMessageHandler() {
             this.auth = JuxtaProxyTaskPublisher.this.auth;
-            this.sessionManager = JuxtaProxyTaskPublisher.this.sessionManager;
             if (this.auth) {
                 this.authStrategy = new SimpleAuthenticationStrategy(
                         JuxtaProxyTaskPublisher.this.userName, JuxtaProxyTaskPublisher.this.password);
@@ -133,35 +183,17 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
         }
 
         @Override
-        public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            String sessionId = ctx.channel().id().asShortText();
-            ClientSession session = ClientSession.buildChannelBoundSession(sessionId, (SocketChannel) ctx.channel());
-            sessionManager.addSession(session);
-
-            super.channelActive(ctx);
-        }
-
-        @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
             if (msg instanceof ByteBuf) {
                 ByteBuf byteBuf = (ByteBuf) msg;
 
                 byte serviceId = byteBuf.getByte(byteBuf.readerIndex());
                 if (serviceId == AuthRequestMessage.SERVICE_ID) {
-                    ClientSession session = sessionManager.getSession(ctx.channel().id().asShortText());
-                    if (session.getState() != SessionState.CONNECTED
-                            && session.getState() != SessionState.AUTHENTICATING) {
-                        ctx.writeAndFlush(new AuthResponseMessage(false, "repeat authentication"));
-                    }
-
-                    session.changeState(SessionState.AUTHENTICATING);
-
                     AuthRequestMessage message = new AuthRequestMessage(byteBuf);
                     if (!auth || authStrategy.checkPermission(message.getUserName(), message.getPassword())) {
-                        session.changeState(SessionState.AUTHENTICATED);
-                        ctx.writeAndFlush(new AuthResponseMessage(true));
+                        ctx.writeAndFlush(new AuthResponseMessage(true)).addListener(f -> logger.info("write auth "
+                                + "response success!"));
                     } else {
-                        session.changeState(SessionState.DISCONNECTED);
                         AuthResponseMessage authMsg = new AuthResponseMessage(false, "401");
                         ctx.writeAndFlush(authMsg).addListener(ChannelFutureListener.CLOSE);
                     }
@@ -174,26 +206,10 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
 
         }
 
-        @Override
-        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-            String sessionId = ctx.channel().id().asShortText();
-            ClientSession session = sessionManager.removeSession(sessionId);
-
-            if (session != null && session.getState() != SessionState.CLOSED) {
-                session.changeState(SessionState.DISCONNECTED);
-                ctx.channel().attr(ClientSession.SESSION_KEY).set(null);
-            }
-
-            super.channelInactive(ctx);
-        }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            ClientSession session = sessionManager.getSession(ctx.channel().id().asShortText());
-            if (session != null) {
-                logger.error("Exception caught for session:[{}].", session.getSessionId(), cause);
-                session.changeState(SessionState.DISCONNECTED);
-            }
+            logger.error(cause.getMessage(), cause);
             ctx.close();
         }
     }
@@ -202,6 +218,9 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
      * 从客户端传过来的代理中继消息，包含着需要的连接信息
      */
     private class ProxyRelayMessageHandler extends ChannelInboundHandlerAdapter {
+
+        public ProxyRelayMessageHandler() {
+        }
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -226,11 +245,7 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
                 } else if (serviceId == ProxyRequestMessage.SERVICE_ID) {
                     ProxyRequestMessage message = new ProxyRequestMessage(byteBuf);
 
-                    SessionManager sessionManager = JuxtaProxyTaskPublisher.this.sessionManager;
-                    ClientSession clientSession = sessionManager.getSession(ctx.channel().id().asShortText());
-                    clientSession.updateActivityTime();
-
-                    ProxyTaskRequest request = new ProxyTaskRequest(ProxyProtocol.JUXTA, message, clientSession);
+                    ProxyTaskRequest request = new ProxyTaskRequest(ProxyProtocol.JUXTA, message, ctx.channel());
                     JuxtaProxyTaskPublisher.this.publishProxyTask(request);
                 }
             } else {

@@ -1,19 +1,18 @@
 package com.sunder.juxtapose.client.subscriber;
 
 import com.sunder.juxtapose.client.CertComponent;
-import com.sunder.juxtapose.client.ProxyMessageReceiver;
-import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.ProxyRequestSubscriber;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
-import com.sunder.juxtapose.client.connection.Connection;
-import com.sunder.juxtapose.client.connection.ConnectionState;
-import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
+import com.sunder.juxtapose.client.group.ProxyNodeLatencyTest;
+import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.common.connection.Connection;
+import com.sunder.juxtapose.common.connection.ConnectionState;
+import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.common.handler.RelayMessageWriteEncoder;
 import com.sunder.juxtapose.common.mesage.AuthRequestMessage;
 import com.sunder.juxtapose.common.mesage.AuthResponseMessage;
@@ -22,8 +21,9 @@ import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
-import com.sunder.juxtapose.client.group.ProxyNodeLatencyTest;
-import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
+import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
@@ -40,7 +40,7 @@ import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:38 2023/7/5
  */
 public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
@@ -139,6 +139,52 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         return urlTestVisitor.testUrl(this);
     }
 
+    // /**
+    //  * 心跳检测处理
+    //  */
+    // private class HeartbeatHandler extends ChannelInboundHandlerAdapter {
+    //
+    //     public HeartbeatHandler() {
+    //         //this.sessionManager = sessionManager;
+    //     }
+    //
+    //     @Override
+    //     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+    //         // 30秒写空闲，超过则发送一个心跳命令
+    //         ctx.pipeline().addLast(new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
+    //     }
+    //
+    //     @Override
+    //     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+    //         if (evt instanceof IdleStateEvent) {
+    //             IdleStateEvent event = (IdleStateEvent) evt;
+    //
+    //             switch (event.state()) {
+    //                 case READER_IDLE:
+    //                     handleReaderIdle(ctx);
+    //                     break;
+    //                 case WRITER_IDLE:
+    //                 case ALL_IDLE:
+    //                     break;
+    //             }
+    //         } else {
+    //             super.userEventTriggered(ctx, evt);
+    //         }
+    //     }
+    //
+    //     /**
+    //      * 处理读取超时，现默认客户端已经断开，降低内存使用
+    //      *
+    //      * @param ctx io.netty.channel.ChannelHandlerContext
+    //      */
+    //     private void handleReaderIdle(ChannelHandlerContext ctx) {
+    //         String sessionId = ctx.channel().id().asShortText();
+    //         ClientSession session = sessionManager.getSession(sessionId);
+    //         session.close();
+    //     }
+    //
+    // }
+
     /**
      * 与代理服务器通信
      */
@@ -172,7 +218,10 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
                 switch (serviceId) {
                     case PingMessage.SERVICE_ID:
+                        new PingMessage(byteBuf);
+                        break;
                     case PongMessage.SERVICE_ID:
+                        new PongMessage(byteBuf);
                         break;
                     case AuthResponseMessage.SERVICE_ID:
                         handleAuthResponseMessage(ctx, new AuthResponseMessage(byteBuf));
@@ -199,7 +248,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         }
 
         private void handleProxyResponseMessage(ChannelHandlerContext ctx, ProxyResponseMessage message) {
-            logger.debug("receive proxy server message...[{}]", message.getSerialId());
+            logger.info("receive proxy server message...[{}]", message.getSerialId());
             if (message.isSuccess()) {
                 DefaultConnectionManager connManager = JuxtaProxyRequestSubscriber.this.connManager;
                 Connection connection = connManager.getConnection(message.getSerialId().toString());

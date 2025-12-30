@@ -16,12 +16,10 @@ import com.sunder.juxtapose.server.ProxyCoreComponent;
 import com.sunder.juxtapose.server.ProxyTaskPublisher;
 import com.sunder.juxtapose.server.ProxyTaskRequest;
 import com.sunder.juxtapose.server.conf.ServerConfig;
-import com.sunder.juxtapose.server.session.ClientSession;
-import com.sunder.juxtapose.server.session.SessionManager;
-import com.sunder.juxtapose.server.session.SessionState;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -55,7 +53,7 @@ import java.net.URISyntaxException;
 import java.util.Base64;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 19:36 2025/08/26
  */
 public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComponent> implements ProxyTaskPublisher {
@@ -71,7 +69,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
     private EventLoopGroup workGroup;
 
     private final IdGenerator idGenerator;
-    private SessionManager sessionManager;
     private CertComponent certComponent;
 
     public HttpProxyTaskPublisher(ProxyCoreComponent parent) {
@@ -95,7 +92,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
         this.bossGroup = Platform.createEventLoopGroup(1);
         this.workGroup = Platform.createEventLoopGroup(4);
 
-        this.sessionManager = getModuleByName(SessionManager.NAME, true, SessionManager.class);
         this.certComponent = getParentComponent().getChildComponentByName(CertComponent.NAME, CertComponent.class);
 
         super.initInternal();
@@ -152,7 +148,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
      */
     private class HttpRequestHandler extends SimpleChannelInboundHandler<HttpObject> {
         private boolean authPass;
-        private ClientSession clientSession;
         private AuthenticationStrategy authStrategy;
 
         public HttpRequestHandler() {
@@ -165,9 +160,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            String sessionId = ctx.channel().id().asShortText();
-            clientSession = ClientSession.buildChannelBoundSession(sessionId, (SocketChannel) ctx.channel());
-            HttpProxyTaskPublisher.this.sessionManager.addSession(clientSession);
 
             super.channelActive(ctx);
         }
@@ -176,7 +168,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
         protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
             if (msg instanceof HttpRequest) {
                 HttpRequest request = (HttpRequest) msg;
-                clientSession.changeState(SessionState.AUTHENTICATING);
 
                 if (HttpMethod.CONNECT.equals(request.method())) {
                     logger.info("connect http[{}] request...", request.uri());
@@ -204,8 +195,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 logger.info("connect http[{}] request auth passed.", request.uri());
             }
 
-            clientSession.changeState(SessionState.AUTHENTICATED);
-
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
             HttpResponse response = new DefaultFullHttpResponse(
                     request.protocolVersion(), HttpResponseStatus.OK
@@ -213,8 +202,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             ctx.writeAndFlush(response).addListener((ChannelFutureListener) channelFuture -> {
                 if (channelFuture.isSuccess()) {
                     ctx.pipeline().addLast(new TunnelProxyHandler(
-                            idGenerator.nextId(), hostInfo.getKey(), hostInfo.getValue(), clientSession));
-                    clientSession.updateActivityTime();
+                            idGenerator.nextId(), hostInfo.getKey(), hostInfo.getValue()));
                 }
             });
         }
@@ -233,8 +221,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 logger.info("connect http[{}] request auth passed.", request.uri());
             }
 
-            clientSession.changeState(SessionState.AUTHENTICATED);
-
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
 
             // 修改请求URI为相对路径
@@ -246,7 +232,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             }
 
             ctx.pipeline().addLast(new PlaintextProxyHandler(
-                    idGenerator.nextId(), hostInfo.getKey(), hostInfo.getValue(), clientSession, request));
+                    idGenerator.nextId(), hostInfo.getKey(), hostInfo.getValue(), ctx.channel(), request));
         }
 
         /**
@@ -337,7 +323,6 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                     Unpooled.copiedBuffer(message.getBytes())
             );
             ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-            clientSession.changeState(SessionState.DISCONNECTED);
         }
     }
 
@@ -348,21 +333,18 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
         private long serialId;
         private String proxyHost;
         private int proxyPort;
-        private ClientSession clientSession;
 
-        public TunnelProxyHandler(long serialId, String proxyHost, int proxyPort, ClientSession clientSess) {
+        public TunnelProxyHandler(long serialId, String proxyHost, int proxyPort) {
             this.serialId = serialId;
             this.proxyHost = proxyHost;
             this.proxyPort = proxyPort;
-            this.clientSession = clientSess;
         }
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ByteBuf) {
-                clientSession.updateActivityTime();
                 ProxyRequestMessage message = new ProxyRequestMessage(serialId, proxyHost, proxyPort, (ByteBuf) msg);
-                ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientSession);
+                ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, ctx.channel());
                 HttpProxyTaskPublisher.this.publishProxyTask(ptr);
             } else {
                 ctx.fireChannelRead(msg);
@@ -376,6 +358,11 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             ctx.pipeline().remove(HttpRequestDecoder.class);
             ctx.pipeline().remove(HttpRequestHandler.class);
         }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            logger.error(cause.getMessage(), cause);
+        }
     }
 
     /**
@@ -385,7 +372,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
         private long serialId;
         private String proxyHost;
         private int proxyPort;
-        private ClientSession clientSession;
+        private Channel clientChannel;
         private final EmbeddedChannel writeEncoder = new EmbeddedChannel(new HttpRequestEncoder() {
             @Override
             protected boolean isContentAlwaysEmpty(HttpRequest msg) {
@@ -393,20 +380,19 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             }
         });
 
-        public PlaintextProxyHandler(long serialId, String proxyHost, int proxyPort, ClientSession clientSession,
-                HttpRequest firstRequest) {
+        public PlaintextProxyHandler(long serialId, String proxyHost, int proxyPort,
+                Channel clientChannel, HttpRequest firstRequest) {
             this.serialId = serialId;
             this.proxyHost = proxyHost;
             this.proxyPort = proxyPort;
-            this.clientSession = clientSession;
+            this.clientChannel = clientChannel;
 
             writeEncoder.writeOutbound(firstRequest);
             ByteBuf result = writeEncoder.readOutbound();
             writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
             try {
-                clientSession.updateActivityTime();
                 ProxyRequestMessage message = new ProxyRequestMessage(serialId, proxyHost, proxyPort, result.retain());
-                ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientSession);
+                ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientChannel);
                 HttpProxyTaskPublisher.this.publishProxyTask(ptr);
             } finally {
                 ReferenceCountUtil.release(result);
@@ -432,9 +418,8 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 ByteBuf buf = writeEncoder.readOutbound();
                 writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
                 try {
-                    clientSession.updateActivityTime();
                     ProxyRequestMessage message = new ProxyRequestMessage(serialId, proxyHost, proxyPort, buf.retain());
-                    ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientSession);
+                    ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientChannel);
                     HttpProxyTaskPublisher.this.publishProxyTask(ptr);
                 } finally {
                     ReferenceCountUtil.release(buf);
@@ -443,7 +428,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 try {
                     ProxyRequestMessage message = new ProxyRequestMessage(
                             serialId, proxyHost, proxyPort, ((HttpContent) msg).content().retain());
-                    ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientSession);
+                    ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientChannel);
                     HttpProxyTaskPublisher.this.publishProxyTask(ptr);
                 } finally {
                     ReferenceCountUtil.release(msg);
