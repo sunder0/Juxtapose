@@ -3,7 +3,7 @@ package com.sunder.juxtapose.common.id;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:00 2025/08/31
  */
 public class SimpleIdGenerator implements IdGenerator {

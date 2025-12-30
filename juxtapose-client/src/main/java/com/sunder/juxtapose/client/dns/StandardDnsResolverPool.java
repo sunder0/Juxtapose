@@ -15,7 +15,7 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:22 2025/09/11
  */
 public class StandardDnsResolverPool {

@@ -7,7 +7,7 @@ import io.netty.buffer.Unpooled;
 import java.nio.charset.StandardCharsets;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:49 2023/7/7
  */
 public class PingMessage extends Message {

@@ -1,8 +1,9 @@
-package com.sunder.juxtapose.client;
+package com.sunder.juxtapose.common.proxy;
 
-import com.sunder.juxtapose.client.ProxyMessageTransfer.SimpleProxyMessageTransfer;
+import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.id.IdGenerator;
 import com.sunder.juxtapose.common.id.SimpleIdGenerator;
+import com.sunder.juxtapose.common.proxy.ProxyMessageTransfer.SimpleProxyMessageTransfer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -12,14 +13,15 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:29 2023/6/21
+ *         代表一个代理
  */
 public class ProxyRequest {
     public final static IdGenerator ID_GENERATOR = new SimpleIdGenerator();
 
     private final Long serialId;
-    private String protocol; // 协议
+    private ProxyProtocol protocol; // 协议
     private String host; // 主机名，可能为域名/ipv4/ipv6地址
     private Integer port;
     private String domain; // 单独存放域名
@@ -41,12 +43,20 @@ public class ProxyRequest {
         this.serialId = ID_GENERATOR.nextId();
     }
 
-    public ProxyRequest(String protocol, String host, Integer port, Channel clientChannel) {
+    public ProxyRequest(ProxyProtocol protocol, String host, Integer port, Channel clientChannel) {
         this.protocol = protocol;
         this.host = host;
         this.port = port;
         this.clientChannel = clientChannel;
         this.serialId = ID_GENERATOR.nextId();
+    }
+
+    public ProxyRequest(ProxyProtocol protocol, Long serialId, String host, Integer port, Channel clientChannel) {
+        this.serialId = serialId;
+        this.protocol = protocol;
+        this.host = host;
+        this.port = port;
+        this.clientChannel = clientChannel;
     }
 
     public ProxyRequest(String host, Integer port, String domain, InetAddress ip, Channel clientChannel) {
@@ -70,7 +80,7 @@ public class ProxyRequest {
         return port;
     }
 
-    public String getProtocol() {
+    public ProxyProtocol getProtocol() {
         return protocol;
     }
 

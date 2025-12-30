@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.common.id;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 10:20 2025/08/28
  */
 public interface IdGenerator {

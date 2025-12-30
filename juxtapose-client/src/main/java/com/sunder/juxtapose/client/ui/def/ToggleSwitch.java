@@ -17,7 +17,7 @@ import javafx.util.Duration;
 import java.util.function.Consumer;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:08 2025/09/22
  *         自定义开关控件
  */

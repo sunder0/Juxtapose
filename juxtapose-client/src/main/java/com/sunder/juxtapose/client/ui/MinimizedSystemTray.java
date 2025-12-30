@@ -15,7 +15,7 @@ import java.awt.Toolkit;
 import java.awt.TrayIcon;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 10:05 2025/09/28
  *         系统托盘
  */

@@ -4,17 +4,23 @@ import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
-import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
+import com.sunder.juxtapose.common.connection.Connection;
+import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.server.connection.UpstreamConnection;
+import com.sunder.juxtapose.server.connection.UpstreamConnectionManager;
 import com.sunder.juxtapose.server.handler.ProxyTaskHandler;
-import com.sunder.juxtapose.server.session.ClientSession;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 
 import java.util.List;
 import java.util.Objects;
@@ -27,17 +33,27 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:40 2023/7/10
+ *         上游tcp消息分发器，把被代理的消息真实发送给目标服务器
  */
 public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreComponent> {
     public final static String NAME = "TCP_PROXY_DISPATCHER";
 
+    private final Bootstrap bootstrap;
+    private final UpstreamConnectionManager connManager;
     private ExecutorService dispatcherExecutor;
     private final List<ProxyTaskSubscriber> proxySubscribers = new CopyOnWriteArrayList<>();
 
     public TcpProxyDispatchComponent(ProxyCoreComponent parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
+
+        this.bootstrap = new Bootstrap().group(Platform.createEventLoopGroup(2))
+                .channel(Platform.socketChannelClass())
+                .option(ChannelOption.SO_KEEPALIVE, true)
+                .option(ChannelOption.AUTO_CLOSE, true)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
+        this.connManager = getModuleByName(UpstreamConnectionManager.NAME, true, UpstreamConnectionManager.class);
     }
 
     @Override
@@ -85,14 +101,11 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
     /**
      * 代理任务，打开一个对外连接
      */
-    private class ProxyTask implements Runnable, ProxyTaskSubscriber {
+    private class ProxyTask implements Runnable, ProxyTaskSubscriber, ProxyMessageReceiver {
         private final BlockingQueue<ProxyTaskRequest> taskQueue;
-        // todo: 需要清理代理关闭的链接
-        private final ConcurrentActiveConMap activeConnects;
 
         public ProxyTask() {
-            this.taskQueue = new ArrayBlockingQueue<>(64);
-            this.activeConnects = new ConcurrentActiveConMap();
+            this.taskQueue = new ArrayBlockingQueue<>(128);
             TcpProxyDispatchComponent.this.proxySubscribers.add(this);
         }
 
@@ -105,65 +118,64 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                     if (request == null) {
                         continue;
                     }
-                    final ProxyRequestMessage message = request.getMessage();
-                    final ClientSession clientSession = request.getClientSession();
 
-                    ActiveProxyConnection conn = new ActiveProxyConnection(
-                            message.getHost(), message.getPort(), message.getSerialId());
-
-                    boolean connected = activeConnects.contains(clientSession, message.getSerialId());
-
+                    boolean connected = connManager.containsConnection(request.getSerialId().toString());
                     if (!connected) {
-                        logger.info("start proxy connection[{}]", request.getMessage().getHost());
-                        Bootstrap bootstrap = new Bootstrap();
+                        logger.info("start proxy connect real server[{}].", request.getHost());
 
-                        bootstrap.group(Platform.createEventLoopGroup(2))
-                                .channel(Platform.socketChannelClass())
-                                .option(ChannelOption.SO_KEEPALIVE, true)
-                                .option(ChannelOption.AUTO_CLOSE, true)
-                                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
+                        ProxyRequest proxy = new ProxyRequest(request.getProtocol(), request.getSerialId(),
+                                request.getHost(), request.getPort(), request.getClientChannel());
+                        UpstreamConnection connection = connManager.createConnection(request.getProtocol(), proxy);
+
+                        ChannelFuture channelFuture = bootstrap.clone()
                                 .handler(new ChannelInitializer<SocketChannel>() {
                                     @Override
-                                    protected void initChannel(SocketChannel socketChannel) {
-                                        ChannelPipeline pipeline = socketChannel.pipeline();
-                                        pipeline.addLast(new ProxyTaskHandler(request));
+                                    protected void initChannel(SocketChannel channel) {
+                                        channel.pipeline().addLast(new UpstreamHeartbeatHandler(connection));
+                                        channel.pipeline().addLast(new ProxyTaskHandler(proxy, connection));
                                     }
-                                });
+                                }).connect(request.getHost(), request.getPort());
+                        channelFuture.addListener(new CompleteChannelFutureListen(proxy, connection, this));
 
-                        ChannelFuture channelFuture = bootstrap.connect(message.getHost(), message.getPort())
-                                .addListener(new CompleteChannelFutureListen(message, conn));
-                        conn.setChannelFuture(channelFuture);
-                        activeConnects.put(clientSession, conn);
+                        // 将第一次收到的消息塞进消息缓存队列
+                        ByteBuf firstBytebuf = request.getContent();
+                        try {
+                            proxy.transferMessage(firstBytebuf.retain());
+                            connection.setChannelFuture(channelFuture);
+                        } finally {
+                            firstBytebuf.release();
+                        }
                     } else {
-                        logger.info("reuse proxy connection[{}]", request.getMessage().getHost());
-                        conn = activeConnects.get(clientSession, message.getSerialId());
-                        if (conn == null) {
+                        logger.info("reuse proxy connection[{}]", request.getHost());
+                        UpstreamConnection connection =
+                                (UpstreamConnection) connManager.getConnection(request.getSerialId().toString());
+                        if (connection == null) {
                             continue;
                         }
 
-                        ChannelFuture cf = conn.getChannelFuture();
-                        if (cf.isDone() && cf.isSuccess()) {
-                            if (cf.channel().isActive()) {
-                                ByteBuf content;
-                                while ((content = conn.getCache().poll()) != null) {
-                                    cf.channel().writeAndFlush(content);
-                                }
-                                cf.channel().writeAndFlush(message.getContent());
+                        ProxyRequest proxy = connection.getProxyRequest();
+                        ChannelFuture cf = connection.getChannelFuture();
+                        if (!cf.isDone() || (cf.isDone() && cf.isSuccess())) {
+                            ByteBuf byteBuf = request.getContent();
+                            try {
+                                proxy.transferMessage(byteBuf.retain());
+                            } finally {
+                                byteBuf.release();
                             }
-                        } else if (!cf.isDone()) {
-                            conn.getCache().offer(message.getContent());
-                        } else {
-                            // 连接失败
-                            activeConnects.remove(clientSession, conn.getSerialId());
                         }
                     }
-
                 }
             } catch (InterruptedException ex) {
                 logger.error("Proxy task thread interrupted, {}", ex.getMessage(), ex);
             } finally {
                 proxySubscribers.remove(this);
             }
+        }
+
+        @Override
+        public void receive(Long serialId, ByteBuf message) {
+            Connection connection = connManager.getConnection(serialId.toString());
+            connection.writeMessage(message);
         }
 
         @Override
@@ -175,35 +187,81 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
 
     /**
      * 对connect的监听，主要做两件事：
-     * 1。是将第一条消息在connect成功后立马发出去
-     * 2。是看是否在connect期间有累计的消息，有的话也发送出去
+     * 1.判断是否连接目标服务器是否成功
+     * 2.激活connection，开始传输数据到目标服务器
      */
     private class CompleteChannelFutureListen implements ChannelFutureListener {
-        private ProxyRequestMessage message;
-        private ActiveProxyConnection conn;
+        private final ProxyRequest request;
+        private final Connection connection;
+        private final ProxyTask proxyTask;
 
-        public CompleteChannelFutureListen(ProxyRequestMessage message, ActiveProxyConnection conn) {
-            this.message = message;
-            this.conn = conn;
+        public CompleteChannelFutureListen(ProxyRequest request, UpstreamConnection connection,
+                ProxyTask proxyTask) {
+            this.request = request;
+            this.connection = connection;
+            this.proxyTask = proxyTask;
         }
 
         @Override
-        public void operationComplete(ChannelFuture channelFuture) throws Exception {
-            if (channelFuture.isSuccess()) {
-                logger.info(
-                        "[{}]Proxy server successfully connects to the target server:[{}:{}].",
-                        message.getSerialId(), message.getHost(), message.getPort());
-                ByteBuf content = message.getContent();
-                do {
-                    if (content != null) {
-                        channelFuture.channel().writeAndFlush(content);
-                    }
-                } while ((content = conn.getCache().poll()) != null);
+        public void operationComplete(ChannelFuture cf) throws Exception {
+            if (cf.isSuccess()) {
+                connection.bindProxyChannel((SocketChannel) cf.channel());
+                connection.activeMessageTransfer(proxyTask);
+                logger.info("Connect to the real server:[{}:{}] successfully, serialId[{}].",
+                        request.getHost(), request.getPort(), request.getSerialId());
             } else {
-                logger.info("[{}]Proxy server failed to connect to the target server:[{}:{}].",
-                        message.getSerialId(), message.getHost(), message.getPort(), channelFuture.cause());
+                logger.info("Connect to the real server:[{}:{}] failed, serialId[{}].",
+                        request.getHost(), request.getPort(), request.getSerialId(), cf.cause());
+                connection.close();
             }
         }
+    }
+
+    /**
+     * 心跳检测处理
+     */
+    private class UpstreamHeartbeatHandler extends ChannelInboundHandlerAdapter {
+        private final Connection connection;
+
+        public UpstreamHeartbeatHandler(Connection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+            // 90秒读空闲，超过视作关闭连接
+            ctx.pipeline().addLast(new IdleStateHandler(90, 0, 0, TimeUnit.SECONDS));
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if (evt instanceof IdleStateEvent) {
+                IdleStateEvent event = (IdleStateEvent) evt;
+
+                switch (event.state()) {
+                    case READER_IDLE:
+                        handleReaderIdle(ctx);
+                        break;
+                    case WRITER_IDLE:
+                    case ALL_IDLE:
+                        break;
+                }
+            } else {
+                super.userEventTriggered(ctx, evt);
+            }
+        }
+
+        /**
+         * 处理读取超时，现默认服务端已经断开，降低内存使用
+         *
+         * @param ctx io.netty.channel.ChannelHandlerContext
+         */
+        private void handleReaderIdle(ChannelHandlerContext ctx) {
+            logger.warn("upstream connection[{}] reader idle "
+                    + "timeout, will close connection.", connection.getConnectId());
+            connection.close();
+        }
+
     }
 
 }

@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 18:40 2023/7/7
  */
 public class PongMessage extends Message {

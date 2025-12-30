@@ -1,4 +1,4 @@
-package com.sunder.juxtapose.client;
+package com.sunder.juxtapose.common.proxy;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
@@ -7,7 +7,7 @@ import java.util.Queue;
 import java.util.concurrent.LinkedTransferQueue;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 18:21 2025/07/19
  *         消息传递，client -> ProxyRequest subscriber
  */

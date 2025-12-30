@@ -3,7 +3,7 @@ package com.sunder.juxtapose.common.auth;
 import cn.hutool.core.util.StrUtil;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 18:20 2025/08/08
  *         简单用户认证
  */

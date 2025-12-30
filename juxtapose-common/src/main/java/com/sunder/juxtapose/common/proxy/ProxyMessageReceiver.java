@@ -1,9 +1,9 @@
-package com.sunder.juxtapose.client;
+package com.sunder.juxtapose.common.proxy;
 
 import io.netty.buffer.ByteBuf;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 18:29 2023/6/21
  */
 public interface ProxyMessageReceiver {

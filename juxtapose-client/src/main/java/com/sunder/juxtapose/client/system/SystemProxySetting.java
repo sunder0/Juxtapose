@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.client.system;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:17 2025/09/23
  */
 public interface SystemProxySetting {

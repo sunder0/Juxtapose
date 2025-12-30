@@ -3,7 +3,7 @@ package com.sunder.juxtapose.client.group;
 import java.util.Arrays;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:05 2025/12/23
  */
 public enum ProxyGroupType {

@@ -9,15 +9,17 @@ import io.netty.handler.ssl.SslProvider;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 22:56 2025/07/30
  */
 public class SslEncryptProvider {
@@ -178,5 +180,11 @@ public class SslEncryptProvider {
             return NAME;
         }
 
+    }
+
+
+    public static void main(String[] args) throws NoSuchAlgorithmException {
+        System.out.println("Supported protocols: " +
+                String.join(", ", SSLContext.getDefault().getSupportedSSLParameters().getProtocols()));
     }
 }

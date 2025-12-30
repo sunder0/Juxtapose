@@ -1,7 +1,7 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:59 2025/09/16
  */
 public enum ConnectionState {

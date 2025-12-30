@@ -14,7 +14,7 @@ import javafx.scene.layout.VBox;
 import java.util.function.Consumer;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:39 2025/09/22
  */
 public class SettingsPanel extends BaseModule<MainUIComponent> {

@@ -22,7 +22,7 @@ import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 10:31 2025/09/22
  */
 public class GeneralPanel extends BaseModule<MainUIComponent> {

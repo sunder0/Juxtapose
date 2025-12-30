@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 18:56 2025/07/29
  */
 public final class StandardClient extends ToplevelComponent implements ClientOperate {

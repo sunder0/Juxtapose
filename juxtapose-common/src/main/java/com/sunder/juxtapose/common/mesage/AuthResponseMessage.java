@@ -6,7 +6,7 @@ import io.netty.buffer.ByteBufAllocator;
 import java.nio.charset.StandardCharsets;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:35 2025/08/08
  */
 public class AuthResponseMessage extends Message {

@@ -1,12 +1,14 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
 
-import com.sunder.juxtapose.client.ProxyMessageReceiver;
+
+import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.traffic.TrafficCounter;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:06 2025/09/16
  */
 public interface Connection {
@@ -48,6 +50,11 @@ public interface Connection {
      * @return 获取流量统计工具
      */
     TrafficCounter getTrafficCounter();
+
+    /**
+     * @return 获取代理请求信息
+     */
+    ProxyRequest getProxyRequest();
 
     /**
      * 绑定proxy channel, 即写出channel（转发给proxy server端数据的channel）

@@ -1,7 +1,8 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
+
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 14:08 2025/08/26
  */
 @FunctionalInterface

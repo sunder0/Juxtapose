@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.common;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 00:21 2025/07/11
  *         小一点的组件统一称为module
  */

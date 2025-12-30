@@ -51,7 +51,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 14:58 2025/09/22
  */
 public class ProxiesPanel extends BaseModule<MainUIComponent> {

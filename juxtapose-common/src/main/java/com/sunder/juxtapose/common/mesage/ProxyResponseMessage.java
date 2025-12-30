@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:51 2023/7/7
  */
 public class ProxyResponseMessage extends Message {

@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.common;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 13:15 2025/07/11
  */
 public class ConfigException extends RuntimeException {

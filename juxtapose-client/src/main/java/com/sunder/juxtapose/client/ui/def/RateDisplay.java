@@ -8,7 +8,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:08 2025/09/22
  *         速率显示独立组件
  */

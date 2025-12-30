@@ -23,7 +23,7 @@ import io.netty.util.internal.PlatformDependent;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 00:22 2025/07/11
  *         平台相关接口
  */

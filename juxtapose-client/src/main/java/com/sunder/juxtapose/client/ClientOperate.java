@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.client;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:25 2025/09/22
  */
 public interface ClientOperate {

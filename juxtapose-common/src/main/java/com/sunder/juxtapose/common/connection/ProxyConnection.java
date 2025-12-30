@@ -1,8 +1,8 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
 
-import com.sunder.juxtapose.client.ProxyMessageReceiver;
-import com.sunder.juxtapose.client.ProxyRequest;
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
@@ -19,9 +19,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:09 2025/09/16
- *         默认的代理连接
+ *         默认的代理连接，由两个channel组成，客户端channel和其对应的代理channel，两个都是active才算connection正常
  */
 public class ProxyConnection implements Connection {
     public static final AttributeKey<ProxyConnection> CONNECT_KEY = AttributeKey.valueOf("CONNECTION");
@@ -154,7 +154,7 @@ public class ProxyConnection implements Connection {
             if (state != ConnectionState.CLOSED) {
                 changeState(ConnectionState.CLOSED);
                 proxyRequest.close();
-                if (proxyChannel.isActive()) {
+                if (proxyChannel != null && proxyChannel.isActive()) {
                     proxyChannel.attr(CONNECT_KEY).set(null);
                     return proxyChannel.close().addListener(f ->
                             logger.info("Close connection[{}] success.", connectId));
@@ -199,6 +199,11 @@ public class ProxyConnection implements Connection {
     @Override
     public TrafficCounter getTrafficCounter() {
         return trafficCounter;
+    }
+
+    @Override
+    public ProxyRequest getProxyRequest() {
+        return proxyRequest;
     }
 
     /**

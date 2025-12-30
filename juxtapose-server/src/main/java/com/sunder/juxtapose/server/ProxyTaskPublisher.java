@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.server;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 19:50 2025/08/26
  *         一般指处理一个proxy request， 并且发布到dispatcher
  */

@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.common;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 14:16 2025/07/29
  *         顶层组件
  */

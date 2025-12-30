@@ -4,7 +4,7 @@ import cn.hutool.core.lang.Snowflake;
 import cn.hutool.core.util.IdUtil;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 10:24 2025/08/28
  *         雪花生成器
  */

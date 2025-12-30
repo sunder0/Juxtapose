@@ -4,13 +4,6 @@ import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeGroupConfig;
-import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
-import com.sunder.juxtapose.client.subscriber.HttpProxyRequestSubscriber;
-import com.sunder.juxtapose.client.subscriber.JuxtaProxyRequestSubscriber;
-import com.sunder.juxtapose.common.BaseCompositeComponent;
-import com.sunder.juxtapose.common.ComponentException;
-import com.sunder.juxtapose.common.ConfigManager;
-import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy;
 import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy.FallbackStrategy;
 import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy.LoadBalanceStrategy;
@@ -18,6 +11,15 @@ import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy.SelectStra
 import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy.URLTestStrategy;
 import com.sunder.juxtapose.client.group.ProxyGroupType;
 import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
+import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
+import com.sunder.juxtapose.client.subscriber.HttpProxyRequestSubscriber;
+import com.sunder.juxtapose.client.subscriber.JuxtaProxyRequestSubscriber;
+import com.sunder.juxtapose.common.BaseCompositeComponent;
+import com.sunder.juxtapose.common.ComponentException;
+import com.sunder.juxtapose.common.ConfigManager;
+import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,7 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 10:31 2025/09/12
  */
 public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComponent> {
@@ -51,7 +53,6 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     private final Map<String, ProxyRequestSubscriber> proxyNodes = new ConcurrentHashMap<>(16);
 
     // 代理组, GROUP_NAME -> (NAME -> ProxyRequestSubscriber)
-    // private final Map<String, Map<String, ProxyRequestSubscriber>> proxyGroups = new ConcurrentHashMap<>(16);
     private final Map<String, ProxyGroup> proxyGroups = new ConcurrentHashMap<>(16);
 
     public ProxyServerNodeManager(ProxyCoreComponent parent) {

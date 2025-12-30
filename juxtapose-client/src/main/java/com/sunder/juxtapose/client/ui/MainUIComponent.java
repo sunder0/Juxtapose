@@ -17,6 +17,7 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.LogModule;
 import com.sunder.juxtapose.common.MultiProtocolResource;
+import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -50,7 +51,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 10:13 2025/09/22
  */
 public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
@@ -63,6 +64,7 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
     private static RateDisplay rateDisplay; // 使用独立的速率显示组件
     private ClientOperate clientOperate;
     private static ClientApplicationContext cac;
+    private DefaultConnectionManager<?> connManager;
 
     public MainUIComponent(ProxyCoreComponent parent, ClientOperate clientOperate) {
         super(NAME, parent, ComponentLifecycleListener.INSTANCE);
@@ -70,6 +72,13 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
                 Executors.newSingleThreadExecutor(ThreadFactoryBuilder.create().setNamePrefix("main-ui-").build());
         this.clientOperate = clientOperate;
         cac = (ClientApplicationContext) context;
+
+        // 监听上下行流量，更新至UI
+        connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
+        connManager.addConnectionStatsListener(totalStats -> {
+            cac.setUploadBytes(totalStats.getBytesUploaded());
+            cac.setDownloadBytes(totalStats.getBytesDownloaded());
+        });
     }
 
     @Override

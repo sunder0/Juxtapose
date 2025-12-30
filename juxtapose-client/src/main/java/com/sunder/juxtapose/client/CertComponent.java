@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 21:35 2025/08/06
  */
 public class CertComponent extends BaseComponent<ProxyServerNodeManager> {

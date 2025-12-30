@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 13:38 2025/07/11
  *         基础单个组件
  */

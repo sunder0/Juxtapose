@@ -3,7 +3,7 @@ package com.sunder.juxtapose.common;
 import java.util.EventObject;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:26 2025/07/10
  */
 public class LifecycleEvent extends EventObject {

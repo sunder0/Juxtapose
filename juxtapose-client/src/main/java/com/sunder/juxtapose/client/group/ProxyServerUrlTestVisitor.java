@@ -1,13 +1,13 @@
 package com.sunder.juxtapose.client.group;
 
 import cn.hutool.core.lang.Pair;
-import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.ProxyRequestSubscriber;
 import com.sunder.juxtapose.client.conf.ClientConfig;
-import com.sunder.juxtapose.client.connection.Connection;
-import com.sunder.juxtapose.client.connection.ConnectionState;
-import com.sunder.juxtapose.client.connection.ConnectionStateListener;
+import com.sunder.juxtapose.common.connection.Connection;
+import com.sunder.juxtapose.common.connection.ConnectionState;
+import com.sunder.juxtapose.common.connection.ConnectionStateListener;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpRequest;
@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:44 2025/12/23
  *         为proxy node提供url-test延迟测试增强
  */

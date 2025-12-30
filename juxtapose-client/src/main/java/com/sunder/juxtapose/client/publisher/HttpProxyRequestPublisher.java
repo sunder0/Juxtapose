@@ -2,8 +2,6 @@ package com.sunder.juxtapose.client.publisher;
 
 import cn.hutool.core.lang.Pair;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
-import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.ProxyRequestPublisher;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.dns.StandardDnsResolverPool;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
@@ -12,6 +10,8 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestPublisher;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -50,7 +50,7 @@ import java.net.URISyntaxException;
 import java.util.Base64;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:49 2025/08/13
  */
 public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent>

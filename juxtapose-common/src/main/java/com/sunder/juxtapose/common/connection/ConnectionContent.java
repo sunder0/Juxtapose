@@ -1,4 +1,4 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
 
 import com.sunder.juxtapose.common.ProxyProtocol;
 
@@ -7,7 +7,7 @@ import java.net.SocketAddress;
 import java.util.Map;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:26 2025/09/17
  */
 public class ConnectionContent {

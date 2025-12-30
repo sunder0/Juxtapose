@@ -1,7 +1,7 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:32 2025/09/16
  *         一些统计数据
  */

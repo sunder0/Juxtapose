@@ -8,7 +8,7 @@ import io.netty.buffer.CompositeByteBuf;
 import java.nio.charset.StandardCharsets;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:35 2025/08/08
  */
 public class AuthRequestMessage extends Message {

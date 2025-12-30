@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:16 2025/09/10
  *         构建GeoIP数据库， mmdb文件参照：https://github.com/Dreamacro/maxmind-geoip/releases/latest/download/Country.mmdb
  */

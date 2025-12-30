@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.common.auth;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 18:15 2025/08/08
  *         认证策略
  */

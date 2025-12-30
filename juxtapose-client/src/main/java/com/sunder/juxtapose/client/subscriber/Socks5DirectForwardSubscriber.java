@@ -6,7 +6,7 @@
 // import com.sunder.juxtapose.common.BaseComponent;
 //
 // /**
-//  * @author : denglinhai
+//  * @author : sunder
 //  * @date : 17:04 2025/08/31
 //  */
 // public class Socks5DirectForwardSubscriber extends BaseComponent<ProxyCoreComponent>

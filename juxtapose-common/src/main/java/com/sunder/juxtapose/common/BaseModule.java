@@ -3,7 +3,7 @@ package com.sunder.juxtapose.common;
 import java.util.Objects;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:32 2025/07/11
  *         基础模块
  */

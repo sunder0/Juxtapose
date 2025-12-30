@@ -1,36 +1,50 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
 
 import cn.hutool.core.thread.ThreadFactoryBuilder;
-import com.sunder.juxtapose.client.ProxyCoreComponent;
-import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.ClientApplicationContext;
 import com.sunder.juxtapose.common.BaseModule;
+import com.sunder.juxtapose.common.Component;
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.channel.ChannelFuture;
 import io.netty.handler.traffic.TrafficCounter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:10 2025/09/16
  */
-public class DefaultConnectionManager extends BaseModule<ProxyCoreComponent> implements ConnectionManager {
+public class DefaultConnectionManager<T extends Component<?>> extends BaseModule<T> implements ConnectionManager {
     public final static String NAME = "DEFAULT_CONNECTION_MANAGER";
 
-    private final Logger logger;
+    protected final Logger logger;
     private final ScheduledThreadPoolExecutor executor;
     // 存放sessionId->session的映射
-    private final Map<String, Connection> connectionMap = new ConcurrentHashMap<>(16);
+    protected final Map<String, Connection> connectionMap = new ConcurrentHashMap<>(16);
+    // 存放connectionStats数据的定时报告监听
+    private final List<Consumer<ConnectionStats>> listeners = new CopyOnWriteArrayList<>();
 
-    public DefaultConnectionManager(ProxyCoreComponent belongComponent) {
+    public DefaultConnectionManager(T belongComponent) {
         super(NAME, belongComponent);
+        this.logger = LoggerFactory.getLogger(DefaultConnectionManager.class);
+        this.executor = new ScheduledThreadPoolExecutor(2,
+                ThreadFactoryBuilder.create().setNamePrefix("ConnectionManage-").build());
+
+        this.executor.scheduleAtFixedRate(this::maintainConnections, 5, 60, TimeUnit.SECONDS);
+        this.executor.scheduleAtFixedRate(this::reportStats, 1, 1, TimeUnit.SECONDS);
+    }
+
+    public DefaultConnectionManager(String name, T belongComponent) {
+        super(name, belongComponent);
         this.logger = LoggerFactory.getLogger(DefaultConnectionManager.class);
         this.executor = new ScheduledThreadPoolExecutor(2,
                 ThreadFactoryBuilder.create().setNamePrefix("ConnectionManage-").build());
@@ -72,8 +86,22 @@ public class DefaultConnectionManager extends BaseModule<ProxyCoreComponent> imp
     }
 
     @Override
+    public boolean containsConnection(String connectionId) {
+        return connectionMap.containsKey(connectionId);
+    }
+
+    @Override
     public Map<String, Connection> getActiveConnections() {
         return Collections.unmodifiableMap(connectionMap);
+    }
+
+    /**
+     * 添加对stats数据的报告监听
+     *
+     * @param listener java.util.function.Consumer
+     */
+    public void addConnectionStatsListener(Consumer<ConnectionStats> listener) {
+        this.listeners.add(listener);
     }
 
     /**
@@ -121,14 +149,14 @@ public class DefaultConnectionManager extends BaseModule<ProxyCoreComponent> imp
             if (counter == null) {
                 continue;
             }
-            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + counter.lastReadBytes());
-            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + counter.lastWrittenBytes());
+            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + counter.lastWrittenBytes());
+            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + counter.lastReadBytes());
         }
 
         // 发布统计信息（用于UI显示）
-        ClientApplicationContext context = getComponent().getApplicationContext(ClientApplicationContext.class);
-        context.setUploadBytes(totalStats.getBytesUploaded());
-        context.setDownloadBytes(totalStats.getBytesDownloaded());
+        for (Consumer<ConnectionStats> listener : listeners) {
+            listener.accept(totalStats);
+        }
     }
 
 }

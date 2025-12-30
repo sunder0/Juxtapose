@@ -1,14 +1,14 @@
 package com.sunder.juxtapose.client.group;
 
 import com.sunder.juxtapose.client.ClientApplicationContext;
-import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.ProxyRequestSubscriber;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
 
 import java.util.Comparator;
 import java.util.List;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:56 2025/12/24
  */
 public interface ProxyGroupNodeSelectStrategy {

@@ -1,8 +1,6 @@
 package com.sunder.juxtapose.client.publisher;
 
 import com.sunder.juxtapose.client.ProxyCoreComponent;
-import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.ProxyRequestPublisher;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.dns.StandardDnsResolverPool;
 import com.sunder.juxtapose.client.handler.TcpProxyMessageHandler;
@@ -12,6 +10,8 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestPublisher;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -41,7 +41,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:32 2025/07/19
  */
 public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreComponent>

@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 19:02 2025/07/11
  *         默认配置管理器
  */

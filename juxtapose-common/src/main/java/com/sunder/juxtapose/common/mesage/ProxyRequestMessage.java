@@ -7,7 +7,7 @@ import io.netty.buffer.CompositeByteBuf;
 import java.nio.charset.StandardCharsets;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:52 2023/7/7
  */
 public class ProxyRequestMessage extends Message {

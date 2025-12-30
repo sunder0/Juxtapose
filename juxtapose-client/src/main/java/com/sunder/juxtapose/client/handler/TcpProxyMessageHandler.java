@@ -1,6 +1,6 @@
 package com.sunder.juxtapose.client.handler;
 
-import com.sunder.juxtapose.client.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:18 2023/6/21
  */
 public class TcpProxyMessageHandler extends ChannelInboundHandlerAdapter {

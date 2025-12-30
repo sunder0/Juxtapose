@@ -9,7 +9,7 @@ import com.sunder.juxtapose.common.ProxyProtocol;
 import java.nio.charset.StandardCharsets;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 23:05 2025/07/28
  */
 public class ServerConfig extends BaseConfig {

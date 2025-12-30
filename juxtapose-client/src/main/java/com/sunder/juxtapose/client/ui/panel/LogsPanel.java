@@ -21,7 +21,7 @@ import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
 import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:41 2025/09/22
  */
 public class LogsPanel extends BaseModule<MainUIComponent> {

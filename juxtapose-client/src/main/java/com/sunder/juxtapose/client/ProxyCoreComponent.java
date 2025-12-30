@@ -2,7 +2,6 @@ package com.sunder.juxtapose.client;
 
 import cn.hutool.core.lang.Assert;
 import com.sunder.juxtapose.client.conf.ClientConfig;
-import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.client.publisher.HttpProxyRequestPublisher;
 import com.sunder.juxtapose.client.publisher.Socks5ProxyRequestPublisher;
 import com.sunder.juxtapose.client.rule.ProxyRuleEngine;
@@ -13,9 +12,13 @@ import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyMode;
+import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestPublisher;
+import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 23:49 2025/07/14
  */
 public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> implements ProxyRequestPublisher {
@@ -34,7 +37,7 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
     protected void initInternal() {
         ClientConfig cfg = getConfigManager().getConfigByName(ClientConfig.NAME, ClientConfig.class);
         // 连接管理器
-        addModule(new DefaultConnectionManager(this));
+        addModule(new DefaultConnectionManager<>(this));
         // 代理规则引擎
         addChildComponent(proxyRuleEngine = new ProxyRuleEngine(this));
         // 代理节点管理器

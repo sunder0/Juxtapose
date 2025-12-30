@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.common;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:24 2025/07/10
  */
 public class LifecycleException extends RuntimeException {

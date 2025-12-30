@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:18 2025/08/12
  */
 public class ProxyServerConfig extends BaseConfig {

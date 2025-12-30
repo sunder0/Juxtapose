@@ -25,7 +25,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:48 2025/09/10
  */
 public class ProxyRuleConfig extends BaseConfig {

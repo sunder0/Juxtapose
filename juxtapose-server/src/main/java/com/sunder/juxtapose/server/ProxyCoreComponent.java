@@ -4,9 +4,8 @@ package com.sunder.juxtapose.server;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.ProxyProtocol;
-import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
-import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
 import com.sunder.juxtapose.server.conf.ServerConfig;
+import com.sunder.juxtapose.server.connection.UpstreamConnectionManager;
 import com.sunder.juxtapose.server.proxy.HttpProxyTaskPublisher;
 import com.sunder.juxtapose.server.proxy.JuxtaProxyTaskPublisher;
 import com.sunder.juxtapose.server.proxy.Socks5ProxyTaskPublisher;
@@ -14,14 +13,11 @@ import com.sunder.juxtapose.server.session.SessionManager;
 
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 22:24 2025/07/21
  */
 public final class ProxyCoreComponent extends BaseCompositeComponent<StandardServer> {
     public final static String NAME = "PROXY_CORE_COMPONENT";
-
-    // 认证策略，后续改成从DB获取
-    private AuthenticationStrategy authStrategy = new SimpleAuthenticationStrategy("root", "root");
 
     private CertComponent certComponent;
     private SessionManager sessionManager;
@@ -34,6 +30,8 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<StandardSer
     @Override
     protected void initInternal() {
         addModule(sessionManager = new SessionManager(this));
+        // 连接管理器
+        addModule(new UpstreamConnectionManager(this));
 
         ServerConfig cfg = getConfigManager().getConfigByName(ServerConfig.NAME, ServerConfig.class);
         ProxyProtocol protocol = cfg.getProxyProto();

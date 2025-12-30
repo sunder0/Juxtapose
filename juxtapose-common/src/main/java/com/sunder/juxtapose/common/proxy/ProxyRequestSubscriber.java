@@ -1,11 +1,11 @@
-package com.sunder.juxtapose.client;
+package com.sunder.juxtapose.common.proxy;
 
-import com.sunder.juxtapose.client.connection.Connection;
 import com.sunder.juxtapose.common.Named;
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.common.connection.Connection;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 15:52 2025/07/15
  *         接受来自请求代理的订阅者
  */

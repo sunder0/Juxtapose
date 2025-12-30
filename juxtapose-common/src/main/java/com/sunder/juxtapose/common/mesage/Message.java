@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:38 2023/7/6
  */
 public abstract class Message {

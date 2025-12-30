@@ -1,7 +1,7 @@
-package com.sunder.juxtapose.client;
+package com.sunder.juxtapose.common.proxy;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:25 2025/07/19
  */
 public interface ProxyRequestPublisher {

@@ -4,7 +4,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 00:22 2025/07/11
  *         基础配置类
  */

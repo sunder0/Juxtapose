@@ -8,7 +8,7 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 10:08 2025/09/23
  */
 public class SystemProxySettingAdapter extends BaseComponent<ProxyCoreComponent> {

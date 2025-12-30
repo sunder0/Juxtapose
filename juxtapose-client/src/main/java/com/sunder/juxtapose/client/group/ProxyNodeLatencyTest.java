@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.client.group;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:42 2025/12/24
  */
 public interface ProxyNodeLatencyTest {

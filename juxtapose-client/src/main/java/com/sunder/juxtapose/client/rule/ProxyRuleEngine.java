@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:35 2025/09/09
  */
 public class ProxyRuleEngine extends BaseComponent<ProxyCoreComponent> {

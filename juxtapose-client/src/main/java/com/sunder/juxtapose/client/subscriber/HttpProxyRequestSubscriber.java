@@ -1,21 +1,21 @@
 package com.sunder.juxtapose.client.subscriber;
 
 import com.sunder.juxtapose.client.CertComponent;
-import com.sunder.juxtapose.client.ProxyMessageReceiver;
-import com.sunder.juxtapose.client.ProxyRequest;
-import com.sunder.juxtapose.client.ProxyRequestSubscriber;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
-import com.sunder.juxtapose.client.connection.Connection;
-import com.sunder.juxtapose.client.connection.ConnectionState;
-import com.sunder.juxtapose.client.connection.DefaultConnectionManager;
+import com.sunder.juxtapose.client.group.ProxyNodeLatencyTest;
+import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyProtocol;
-import com.sunder.juxtapose.client.group.ProxyNodeLatencyTest;
-import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
+import com.sunder.juxtapose.common.connection.Connection;
+import com.sunder.juxtapose.common.connection.ConnectionState;
+import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
+import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
@@ -41,7 +41,7 @@ import java.util.Base64;
 import java.util.Objects;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:46 2025/09/02
  */
 public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>

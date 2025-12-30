@@ -1,13 +1,14 @@
-package com.sunder.juxtapose.client.connection;
+package com.sunder.juxtapose.common.connection;
 
-import com.sunder.juxtapose.client.ProxyRequest;
+
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.channel.ChannelFuture;
 
 import java.util.Map;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 16:31 2025/09/16
  */
 public interface ConnectionManager {
@@ -34,6 +35,14 @@ public interface ConnectionManager {
      * @return
      */
     Connection getConnection(String connectionId);
+
+    /**
+     * 是否存在连接
+     *
+     * @param connectionId
+     * @return
+     */
+    boolean containsConnection(String connectionId);
 
     /**
      * @return 获取活跃连接

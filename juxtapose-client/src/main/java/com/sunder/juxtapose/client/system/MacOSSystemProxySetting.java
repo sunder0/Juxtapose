@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:31 2025/09/08
  *         设置mac系统代理，目前只设置socks5
  */

@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.common;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 18:01 2025/07/11
  */
 public interface ConfigManager<T extends Component<?>> extends Module<T> {

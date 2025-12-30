@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.net.InetAddress;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 17:15 2025/09/09
  */
 public interface ProxyRule {

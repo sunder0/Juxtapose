@@ -1,7 +1,7 @@
 package com.sunder.juxtapose.server.session;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 11:35 2025/08/26
  */
 public enum SessionState {

@@ -7,7 +7,7 @@ import cn.hutool.core.io.resource.Resource;
 import org.slf4j.LoggerFactory;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 19:18 2025/08/14
  */
 public class LogModule<T extends Component<?>> extends BaseModule<T> {

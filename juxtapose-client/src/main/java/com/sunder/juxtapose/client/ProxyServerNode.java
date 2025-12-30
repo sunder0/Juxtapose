@@ -4,7 +4,7 @@ import com.sunder.juxtapose.common.Named;
 import com.sunder.juxtapose.common.ProxyProtocol;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 14:50 2025/12/25
  *         代理服务节点
  */

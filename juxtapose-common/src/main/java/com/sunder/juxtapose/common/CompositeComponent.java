@@ -3,7 +3,7 @@ package com.sunder.juxtapose.common;
 import java.util.Map;
 
 /**
- * @author : denglinhai
+ * @author : sunder
  * @date : 14:10 2025/07/11
  *         组合组件接口
  */
