@@ -64,7 +64,7 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
             @Override
             public void onStateChanged(Connection connection, ConnectionState oldState, ConnectionState newState) {
                 if (newState == ConnectionState.CLOSED) {
-                    closeConnection(connection.getConnectId());
+                    removeConnection(connection.getConnectId());
                 }
             }
         });
@@ -78,6 +78,14 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
         logger.info("Connection removed:[{}], total:[{}]", connection.getConnectId(), connectionMap.size());
 
         return connection.close();
+    }
+
+    @Override
+    public Connection removeConnection(String connectionId) {
+        Connection connection = connectionMap.remove(connectionId);
+        logger.info("Connection removed:[{}], total:[{}]", connection.getConnectId(), connectionMap.size());
+
+        return connection;
     }
 
     @Override
@@ -113,21 +121,24 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
         for (Connection connection : connectionMap.values()) {
             // 清理超时或无效连接
             if (connection.getState() == ConnectionState.CLOSED || connection.getState() == ConnectionState.ERROR) {
-                closeConnection(connection.getConnectId());
+                //closeConnection(connection.getConnectId());
+                connection.close();
                 cleaned++;
             }
 
             // 清理空闲连接
             ConnectionStats stats = connection.getStats();
             if (now - stats.getLastActivityTime() > TimeUnit.HOURS.toMillis(1)) {
-                closeConnection(connection.getConnectId());
+                //closeConnection(connection.getConnectId());
+                connection.close();
                 cleaned++;
             }
 
             // 清理长时间未认证的连接
             if (connection.getState() == ConnectionState.CONNECTED &&
                     (now - stats.getLastActivityTime()) > TimeUnit.MINUTES.toMillis(1)) {
-                closeConnection(connection.getConnectId());
+                //closeConnection(connection.getConnectId());
+                connection.close();
                 logger.warn("Connection[{}] authentication timeout, closing", connection.getConnectId());
                 cleaned++;
             }

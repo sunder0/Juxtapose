@@ -30,7 +30,7 @@ public class UpstreamConnectionManager extends DefaultConnectionManager<ProxyCor
             @Override
             public void onStateChanged(Connection connection, ConnectionState oldState, ConnectionState newState) {
                 if (newState == ConnectionState.CLOSED) {
-                    closeConnection(connection.getConnectId());
+                    removeConnection(connection.getConnectId());
                 }
             }
         });

@@ -29,6 +29,14 @@ public interface ConnectionManager {
     ChannelFuture closeConnection(String connectionId);
 
     /**
+     * 移除连接
+     *
+     * @param connectionId 连接id
+     * @return
+     */
+    Connection removeConnection(String connectionId);
+
+    /**
      * 获取连接
      *
      * @param connectionId

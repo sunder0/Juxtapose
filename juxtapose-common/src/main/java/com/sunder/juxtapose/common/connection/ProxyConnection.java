@@ -26,13 +26,13 @@ import java.util.concurrent.locks.ReentrantLock;
 public class ProxyConnection implements Connection {
     public static final AttributeKey<ProxyConnection> CONNECT_KEY = AttributeKey.valueOf("CONNECTION");
 
-    private final Logger logger;
-    private final Lock lock = new ReentrantLock();
+    protected final Logger logger;
+    protected final Lock lock = new ReentrantLock();
 
-    private Long connectId;
-    private volatile ConnectionState state;
-    private ProxyRequest proxyRequest; // 包含代理请求信息和连接用户端的channel
-    private SocketChannel proxyChannel; // 连接代理服务器channel
+    protected Long connectId;
+    protected volatile ConnectionState state;
+    protected ProxyRequest proxyRequest; // 包含代理请求信息和连接用户端的channel
+    protected SocketChannel proxyChannel; // 连接代理服务器channel
     private ConnectionContent connectionContent; // 连接内容信息
     private ConnectionStats connectionStats; // 连接统计信息
     private TrafficCounter trafficCounter; // 流量统计
@@ -128,7 +128,9 @@ public class ProxyConnection implements Connection {
                     state, proxyRequest.isActive());
             if (!proxyRequest.isActive()) {
                 logger.info("Client channel closed, terminating the connection[{}].", connectId);
-                close();
+                //close();
+                proxyRequest.close();
+                changeState(ConnectionState.CLOSED);
             }
             if (message instanceof ByteBuf) {
                 ReferenceCountUtil.release(message);
@@ -225,13 +227,13 @@ public class ProxyConnection implements Connection {
         listeners.forEach(l -> l.onStateChanged(this, oldState, newState));
     }
 
-    private boolean isReadableState() {
+    protected boolean isReadableState() {
         return state == ConnectionState.AUTHENTICATED || state == ConnectionState.ACTIVE
                 || state == ConnectionState.IDLE || state == ConnectionState.CONNECTED
                 || state == ConnectionState.READY;
     }
 
-    private boolean isWritableState() {
+    protected boolean isWritableState() {
         return state == ConnectionState.AUTHENTICATED || state == ConnectionState.ACTIVE
                 || state == ConnectionState.IDLE || state == ConnectionState.CONNECTED
                 || state == ConnectionState.READY;
