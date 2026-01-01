@@ -149,11 +149,17 @@ public interface ProxyRule {
 
         @Override
         public boolean matches(String domain, InetAddress ip, int port) {
-            if (GEOIPDB == null) {
-                logger.error("GEOIP DB is null!");
-                return "CN".equalsIgnoreCase(countryCode);
+            String countryCode = null;
+            try {
+                countryCode = GEOIPDB.country(ip);
+                if (countryCode == null) {
+                    return "CN".equalsIgnoreCase(this.countryCode);
+                }
+                return countryCode.equalsIgnoreCase(this.countryCode);
+            } catch (Exception ex) {
+                logger.warn("Query GeoIp db error, inetAddress[{}] is error.", ip, ex);
             }
-            return GEOIPDB.country(ip).equalsIgnoreCase(countryCode);
+            return "CN".equalsIgnoreCase(this.countryCode);
         }
 
         @Override
