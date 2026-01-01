@@ -128,7 +128,6 @@ public class ProxyConnection implements Connection {
                     state, proxyRequest.isActive());
             if (!proxyRequest.isActive()) {
                 logger.info("Client channel closed, terminating the connection[{}].", connectId);
-                //close();
                 proxyRequest.close();
                 changeState(ConnectionState.CLOSED);
             }

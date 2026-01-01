@@ -1,7 +1,6 @@
 package com.sunder.juxtapose.client.subscriber;
 
 import com.sunder.juxtapose.client.CertComponent;
-import com.sunder.juxtapose.common.pool.FixedChannelPool;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.group.ProxyNodeLatencyTest;
@@ -21,6 +20,7 @@ import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
+import com.sunder.juxtapose.common.pool.FixedChannelPool;
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
@@ -34,13 +34,15 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 import io.netty.util.ReferenceCountUtil;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -54,7 +56,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
     private Bootstrap bootstrap;
     private final ProxyServerNodeConfig cfg;
     private CertComponent certComponent;
-    private DefaultConnectionManager connManager;
+    private DefaultConnectionManager<?> connManager;
     private FixedChannelPool fixedChannelPool;
 
     public JuxtaProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
@@ -85,12 +87,13 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                 pipeline.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                         Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
                 pipeline.addLast(RelayMessageWriteEncoder.INSTANCE);
+                pipeline.addLast(new HeartbeatHandler());
             }
         });
 
         this.bootstrap = bootstrap;
         this.connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
-        this.fixedChannelPool = new JuxtaFixedChannelPool(bootstrap.config().group(), 1, 10 * 1_000);
+        this.fixedChannelPool = new JuxtaFixedChannelPool(this.bootstrap, 3);
 
         super.initInternal();
     }
@@ -142,51 +145,47 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         return urlTestVisitor.testUrl(this);
     }
 
-    // /**
-    //  * 心跳检测处理
-    //  */
-    // private class HeartbeatHandler extends ChannelInboundHandlerAdapter {
-    //
-    //     public HeartbeatHandler() {
-    //         //this.sessionManager = sessionManager;
-    //     }
-    //
-    //     @Override
-    //     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
-    //         // 30秒写空闲，超过则发送一个心跳命令
-    //         ctx.pipeline().addLast(new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
-    //     }
-    //
-    //     @Override
-    //     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-    //         if (evt instanceof IdleStateEvent) {
-    //             IdleStateEvent event = (IdleStateEvent) evt;
-    //
-    //             switch (event.state()) {
-    //                 case READER_IDLE:
-    //                     handleReaderIdle(ctx);
-    //                     break;
-    //                 case WRITER_IDLE:
-    //                 case ALL_IDLE:
-    //                     break;
-    //             }
-    //         } else {
-    //             super.userEventTriggered(ctx, evt);
-    //         }
-    //     }
-    //
-    //     /**
-    //      * 处理读取超时，现默认客户端已经断开，降低内存使用
-    //      *
-    //      * @param ctx io.netty.channel.ChannelHandlerContext
-    //      */
-    //     private void handleReaderIdle(ChannelHandlerContext ctx) {
-    //         String sessionId = ctx.channel().id().asShortText();
-    //         ClientSession session = sessionManager.getSession(sessionId);
-    //         session.close();
-    //     }
-    //
-    // }
+     /**
+      * 心跳检测处理
+      */
+     private class HeartbeatHandler extends ChannelInboundHandlerAdapter {
+
+         @Override
+         public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+             // 30秒写空闲，超过则发送一个心跳命令
+             ctx.pipeline().addLast(new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
+         }
+
+         @Override
+         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+             if (evt instanceof IdleStateEvent) {
+                 IdleStateEvent event = (IdleStateEvent) evt;
+
+                 switch (event.state()) {
+                     case READER_IDLE:
+                         break;
+                     case WRITER_IDLE:
+                         handleWriterIdle(ctx);
+                         break;
+                     case ALL_IDLE:
+                         break;
+                 }
+             } else {
+                 super.userEventTriggered(ctx, evt);
+             }
+         }
+
+         /**
+          * 处理写超时，默认发送ping命令
+          *
+          * @param ctx io.netty.channel.ChannelHandlerContext
+          */
+         private void handleWriterIdle(ChannelHandlerContext ctx) {
+             PingMessage message = new PingMessage();
+             ctx.channel().writeAndFlush(message);
+         }
+
+     }
 
     /**
      * 与代理服务器通信
@@ -243,7 +242,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         private void handleProxyResponseMessage(ChannelHandlerContext ctx, ProxyResponseMessage message) {
             logger.debug("receive proxy server message...[{}]", message.getSerialId());
             if (message.isSuccess()) {
-                DefaultConnectionManager connManager = JuxtaProxyRequestSubscriber.this.connManager;
+                DefaultConnectionManager<?> connManager = JuxtaProxyRequestSubscriber.this.connManager;
                 Connection connection = connManager.getConnection(message.getSerialId().toString());
                 if (connection != null) {
                     connection.readMessage(message.getContent());
@@ -269,8 +268,8 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
      */
     private class JuxtaFixedChannelPool extends FixedChannelPool {
 
-        public JuxtaFixedChannelPool(EventLoopGroup group, int maximumPoolSize, long keepAliveTime) {
-            super(group, maximumPoolSize, keepAliveTime);
+        public JuxtaFixedChannelPool(Bootstrap bootstrap, int maximumPoolSize) {
+            super(bootstrap, maximumPoolSize);
         }
 
         @Override
