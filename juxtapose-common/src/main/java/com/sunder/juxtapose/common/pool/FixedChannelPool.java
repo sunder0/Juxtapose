@@ -7,6 +7,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.VoidChannelPromise;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,15 +15,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author : denglinhai
  * @date : 10:49 2025/12/31
- * 保持固定连接数量的连接池, 未达到最大数量前一直创建连接，达到后从池中取用，不存在release操作，即类似Semaphore机制
+ * 保持固定连接数量的连接池, 未达到最大数量前一直创建连接，达到后从池中取用，即类似Semaphore机制
  */
 public abstract class FixedChannelPool implements ChannelPool {
     protected final Logger logger;
@@ -82,13 +81,11 @@ public abstract class FixedChannelPool implements ChannelPool {
             return future;
         }
 
-        group.next().execute(() -> {
-            try {
-                doAcquire(future, request, connection);
-            } catch (Exception e) {
-                future.completeExceptionally(e);
-            }
-        });
+        try {
+            doAcquire(future, request, connection);
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+        }
 
         return future;
     }
@@ -107,6 +104,7 @@ public abstract class FixedChannelPool implements ChannelPool {
                 if (channelSize.get() < maximumPoolSize) {
                     // 创建新连接
                     createNewChannel(future, request, connection);
+                    return;
                 }
             }
         }
@@ -152,21 +150,26 @@ public abstract class FixedChannelPool implements ChannelPool {
 
     @Override
     public ChannelFuture release(Channel channel) {
-        throw new UnsupportedOperationException();
+        if (!isChannelValid(channel)) {
+            return removeInvalidChannel(channel);
+        }
+
+        return new VoidChannelPromise(channel, true);
     }
 
     /**
      * 移除无效连接
      */
-    private void removeInvalidChannel(Channel channel) {
+    private ChannelFuture removeInvalidChannel(Channel channel) {
         if (pooled.remove(channel)) {
             channelSize.decrementAndGet();
             try {
-                channel.close().syncUninterruptibly();
+                return channel.close().syncUninterruptibly();
             } catch (Exception ex) {
                 logger.error("Failed to close invalid channel", ex);
             }
         }
+        return null;
     }
 
     @Override
@@ -208,13 +211,13 @@ public abstract class FixedChannelPool implements ChannelPool {
         ChannelFuture channelFuture = createNewChannel0(request, connection);
 
         // 超时控制
-        group.next().schedule(() -> {
-            if (!future.isDone()) {
-                future.completeExceptionally(new TimeoutException(
-                        "Connection creation timeout after " + connectionTimeoutMs + "ms"));
-                channelFuture.cancel(true);
-            }
-        }, connectionTimeoutMs, TimeUnit.MILLISECONDS);
+        // group.next().schedule(() -> {
+        //     if (!future.isDone()) {
+        //         future.completeExceptionally(new TimeoutException(
+        //                 "Connection creation timeout after " + connectionTimeoutMs + "ms"));
+        //         channelFuture.cancel(true);
+        //     }
+        // }, connectionTimeoutMs, TimeUnit.MILLISECONDS);
 
         channelFuture.addListener((ChannelFutureListener) cf -> {
             if (cf.isSuccess()) {

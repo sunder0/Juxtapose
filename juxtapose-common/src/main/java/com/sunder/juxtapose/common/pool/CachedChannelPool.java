@@ -18,9 +18,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -190,14 +188,11 @@ public abstract class CachedChannelPool implements ChannelPool {
             return future;
         }
 
-        // 在事件循环线程中执行获取操作
-        group.next().execute(() -> {
-            try {
-                doAcquire(future, request, connection);
-            } catch (Exception e) {
-                future.completeExceptionally(e);
-            }
-        });
+        try {
+            doAcquire(future, request, connection);
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+        }
 
         return future;
     }
@@ -222,7 +217,7 @@ public abstract class CachedChannelPool implements ChannelPool {
             createNewChannelAsync(future, request, connection);
         } else {
             // 如果连接数达到理论最大值，将请求加入等待队列
-            pendingRequests.offer(new ConnectionRequest(future, request, connection));
+            pendingRequests.offer(new CachedChannelPool.ConnectionRequest(future, request, connection));
             processPendingRequests();
         }
     }
@@ -231,7 +226,7 @@ public abstract class CachedChannelPool implements ChannelPool {
      * 尝试从空闲队列获取连接, 优先从队列尾部获取，尾部链接时间短，比较“热”
      */
     private Channel tryAcquireIdleChannel() {
-        IdleChannel idleChannel;
+        CachedChannelPool.IdleChannel idleChannel;
         while ((idleChannel = idleQueue.pollLast()) != null) {
             Channel channel = idleChannel.channel;
 
@@ -267,16 +262,16 @@ public abstract class CachedChannelPool implements ChannelPool {
             // 创建新连接
             ChannelFuture channelFuture = createNewChannel0(request, connection);
 
-            // 设置超时
-            ScheduledFuture<?> timeoutFuture = group.next().schedule(() -> {
-                if (!future.isDone()) {
-                    future.completeExceptionally(new TimeoutException(
-                            "Connection creation timeout after " + connectionTimeoutMs + "ms"));
-                }
-            }, connectionTimeoutMs, TimeUnit.MILLISECONDS);
+            // // 设置超时
+            // ScheduledFuture<?> timeoutFuture = group.next().schedule(() -> {
+            //     if (!future.isDone()) {
+            //         future.completeExceptionally(new TimeoutException(
+            //                 "Connection creation timeout after " + connectionTimeoutMs + "ms"));
+            //     }
+            // }, connectionTimeoutMs, TimeUnit.MILLISECONDS);
 
             channelFuture.addListener((ChannelFutureListener) cf -> {
-                timeoutFuture.cancel(false); // 取消超时任务
+               // timeoutFuture.cancel(false); // 取消超时任务
 
                 if (cf.isSuccess()) {
                     Channel channel = cf.channel();

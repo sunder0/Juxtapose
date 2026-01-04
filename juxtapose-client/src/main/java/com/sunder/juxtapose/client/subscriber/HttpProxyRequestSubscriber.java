@@ -71,6 +71,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(Platform.createEventLoopGroup(2))
                 .channel(Platform.socketChannelClass())
+                //.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
@@ -218,10 +219,10 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
+            connection.close();
+            cachedChannelPool.release(ctx.channel());
             ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                connection.close();
-                cachedChannelPool.release(ctx.channel());
-                HttpProxyRequestSubscriber.this.destroy();
+                logger.info("Channel[{}] close..", ctx.channel().id());
             });
         }
 
@@ -284,10 +285,10 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
+            connection.close();
+            cachedChannelPool.release(ctx.channel());
             ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                connection.close();
-                cachedChannelPool.release(ctx.channel());
-                HttpProxyRequestSubscriber.this.destroy();
+                logger.info("Channel[{}] close..", ctx.channel().id());
             });
         }
     }

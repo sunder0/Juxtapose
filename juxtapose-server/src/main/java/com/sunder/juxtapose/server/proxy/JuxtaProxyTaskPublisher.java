@@ -27,6 +27,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.ServerSocketChannel;
@@ -87,6 +88,7 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(bossGroup, workGroup)
                     .channel(serverSocketChannel)
+                    .option(ChannelOption.SO_KEEPALIVE, true)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {

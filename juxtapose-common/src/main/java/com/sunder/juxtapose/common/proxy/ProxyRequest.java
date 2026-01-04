@@ -2,7 +2,7 @@ package com.sunder.juxtapose.common.proxy;
 
 import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.id.IdGenerator;
-import com.sunder.juxtapose.common.id.SimpleIdGenerator;
+import com.sunder.juxtapose.common.id.SnowflakeIdGenerator;
 import com.sunder.juxtapose.common.proxy.ProxyMessageTransfer.SimpleProxyMessageTransfer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *         代表一个代理
  */
 public class ProxyRequest {
-    public final static IdGenerator ID_GENERATOR = new SimpleIdGenerator();
+    public final static IdGenerator ID_GENERATOR = new SnowflakeIdGenerator(1, 1);
 
     private final Long serialId;
     private ProxyProtocol protocol; // 协议

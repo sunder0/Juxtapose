@@ -39,7 +39,7 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
         this.executor = new ScheduledThreadPoolExecutor(2,
                 ThreadFactoryBuilder.create().setNamePrefix("ConnectionManage-").build());
 
-        this.executor.scheduleAtFixedRate(this::maintainConnections, 5, 60, TimeUnit.SECONDS);
+        this.executor.scheduleAtFixedRate(this::maintainConnections, 5, 30, TimeUnit.SECONDS);
         this.executor.scheduleAtFixedRate(this::reportStats, 1, 1, TimeUnit.SECONDS);
     }
 
@@ -75,7 +75,8 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
     @Override
     public ChannelFuture closeConnection(String connectionId) {
         Connection connection = connectionMap.remove(connectionId);
-        logger.info("Connection removed:[{}], total:[{}]", connection.getConnectId(), connectionMap.size());
+        logger.info("Connection removed:[{}, {}], total:[{}]", connection.getConnectId(),
+                connection.getProxyRequest().getHost(), connectionMap.size());
 
         return connection.close();
     }
@@ -121,15 +122,13 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
         for (Connection connection : connectionMap.values()) {
             // 清理超时或无效连接
             if (connection.getState() == ConnectionState.CLOSED || connection.getState() == ConnectionState.ERROR) {
-                //closeConnection(connection.getConnectId());
                 connection.close();
                 cleaned++;
             }
 
             // 清理空闲连接
             ConnectionStats stats = connection.getStats();
-            if (now - stats.getLastActivityTime() > TimeUnit.HOURS.toMillis(1)) {
-                //closeConnection(connection.getConnectId());
+            if (now - stats.getLastActivityTime() > TimeUnit.MINUTES.toMillis(5)) {
                 connection.close();
                 cleaned++;
             }
@@ -137,10 +136,16 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
             // 清理长时间未认证的连接
             if (connection.getState() == ConnectionState.CONNECTED &&
                     (now - stats.getLastActivityTime()) > TimeUnit.MINUTES.toMillis(1)) {
-                //closeConnection(connection.getConnectId());
                 connection.close();
                 logger.warn("Connection[{}] authentication timeout, closing", connection.getConnectId());
                 cleaned++;
+            }
+
+            if (connection instanceof ProxyConnection) {
+                ProxyConnection conn = (ProxyConnection) connection;
+                if (!conn.proxyChannel.isActive()) {
+                    conn.close();
+                }
             }
 
         }

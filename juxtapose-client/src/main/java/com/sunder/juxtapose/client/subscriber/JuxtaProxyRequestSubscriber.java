@@ -145,47 +145,47 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         return urlTestVisitor.testUrl(this);
     }
 
-     /**
-      * 心跳检测处理
-      */
-     private class HeartbeatHandler extends ChannelInboundHandlerAdapter {
+    /**
+     * 心跳检测处理
+     */
+    private class HeartbeatHandler extends ChannelInboundHandlerAdapter {
 
-         @Override
-         public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
-             // 30秒写空闲，超过则发送一个心跳命令
-             ctx.pipeline().addLast(new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
-         }
+        @Override
+        public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+            // 30秒写空闲，超过则发送一个心跳命令
+            ctx.pipeline().addLast(new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
+        }
 
-         @Override
-         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-             if (evt instanceof IdleStateEvent) {
-                 IdleStateEvent event = (IdleStateEvent) evt;
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if (evt instanceof IdleStateEvent) {
+                IdleStateEvent event = (IdleStateEvent) evt;
 
-                 switch (event.state()) {
-                     case READER_IDLE:
-                         break;
-                     case WRITER_IDLE:
-                         handleWriterIdle(ctx);
-                         break;
-                     case ALL_IDLE:
-                         break;
-                 }
-             } else {
-                 super.userEventTriggered(ctx, evt);
-             }
-         }
+                switch (event.state()) {
+                    case READER_IDLE:
+                        break;
+                    case WRITER_IDLE:
+                        handleWriterIdle(ctx);
+                        break;
+                    case ALL_IDLE:
+                        break;
+                }
+            } else {
+                super.userEventTriggered(ctx, evt);
+            }
+        }
 
-         /**
-          * 处理写超时，默认发送ping命令
-          *
-          * @param ctx io.netty.channel.ChannelHandlerContext
-          */
-         private void handleWriterIdle(ChannelHandlerContext ctx) {
-             PingMessage message = new PingMessage();
-             ctx.channel().writeAndFlush(message);
-         }
+        /**
+         * 处理写超时，默认发送ping命令
+         *
+         * @param ctx io.netty.channel.ChannelHandlerContext
+         */
+        private void handleWriterIdle(ChannelHandlerContext ctx) {
+            PingMessage message = new PingMessage();
+            ctx.channel().writeAndFlush(message);
+        }
 
-     }
+    }
 
     /**
      * 与代理服务器通信
@@ -208,21 +208,24 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ByteBuf) {
                 ByteBuf byteBuf = (ByteBuf) msg;
-                byte serviceId = byteBuf.getByte(byteBuf.readerIndex());
-
-                switch (serviceId) {
-                    case PingMessage.SERVICE_ID:
-                        new PingMessage(byteBuf);
-                        break;
-                    case PongMessage.SERVICE_ID:
-                        new PongMessage(byteBuf);
-                        break;
-                    case AuthResponseMessage.SERVICE_ID:
-                        handleAuthResponseMessage(ctx, new AuthResponseMessage(byteBuf));
-                        break;
-                    case ProxyResponseMessage.SERVICE_ID:
-                        handleProxyResponseMessage(ctx, new ProxyResponseMessage(byteBuf));
-                        break;
+                try {
+                    byte serviceId = byteBuf.getByte(byteBuf.readerIndex());
+                    switch (serviceId) {
+                        case PingMessage.SERVICE_ID:
+                            new PingMessage(byteBuf);
+                            break;
+                        case PongMessage.SERVICE_ID:
+                            new PongMessage(byteBuf);
+                            break;
+                        case AuthResponseMessage.SERVICE_ID:
+                            handleAuthResponseMessage(ctx, new AuthResponseMessage(byteBuf));
+                            break;
+                        case ProxyResponseMessage.SERVICE_ID:
+                            handleProxyResponseMessage(ctx, new ProxyResponseMessage(byteBuf));
+                            break;
+                    }
+                } finally {
+                    byteBuf.release();
                 }
             } else {
                 ctx.fireChannelRead(msg);
@@ -233,7 +236,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
             if (!message.isPassed()) {
                 logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.server, cfg.port,
                         message.getMessage());
-                JuxtaProxyRequestSubscriber.this.destroy();
+                fixedChannelPool.release(ctx.channel());
             } else {
                 // nothing to do...
             }
@@ -257,8 +260,9 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
+            fixedChannelPool.release(ctx.channel());
             ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                JuxtaProxyRequestSubscriber.this.destroy();
+                logger.info("Channel[{}] close..", ctx.channel().id());
             });
         }
     }
@@ -276,7 +280,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         protected ChannelFuture createNewChannel0(ProxyRequest request, Connection connection) {
             return bootstrap.clone().connect(cfg.server, cfg.port).addListener((ChannelFutureListener) cf -> {
                 if (cf.isSuccess()) {
-                    cf.channel().pipeline().addLast(new ProxyRelayMessageHandler());
+                    cf.channel().pipeline().addLast(new JuxtaProxyRequestSubscriber.ProxyRelayMessageHandler());
                     ChannelTrafficShapingHandler trafficHandler =
                             cf.channel().pipeline().get(ChannelTrafficShapingHandler.class);
                     connection.bindTrafficCounter(trafficHandler.trafficCounter());
