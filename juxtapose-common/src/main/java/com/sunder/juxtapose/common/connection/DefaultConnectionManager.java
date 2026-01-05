@@ -5,6 +5,7 @@ import com.sunder.juxtapose.common.BaseModule;
 import com.sunder.juxtapose.common.Component;
 import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.handler.traffic.TrafficCounter;
 import org.slf4j.Logger;
@@ -18,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * @author : sunder
@@ -95,6 +97,18 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
     }
 
     @Override
+    public List<Connection> getConnectionsByClientChannel(Channel clientChannel) {
+        return connectionMap.values().stream().filter(c -> c.getProxyRequest().getClientChannel().equals(clientChannel))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Connection> getConnectionsByProxyChannel(Channel proxyChannel) {
+        return connectionMap.values().stream().filter(c -> c.getProxyChannel().equals(proxyChannel))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public boolean containsConnection(String connectionId) {
         return connectionMap.containsKey(connectionId);
     }
@@ -117,6 +131,7 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
      * 维护连接，清理无效的(空闲+已关闭或报错的)
      */
     private void maintainConnections() {
+        // todo: 修改成监听模式
         int cleaned = 0;
         long now = System.currentTimeMillis();
         for (Connection connection : connectionMap.values()) {
@@ -141,12 +156,13 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
                 cleaned++;
             }
 
-            if (connection instanceof ProxyConnection) {
-                ProxyConnection conn = (ProxyConnection) connection;
-                if (!conn.proxyChannel.isActive()) {
-                    conn.close();
-                }
-            }
+            // if (connection instanceof ProxyConnection) {
+            //     ProxyConnection conn = (ProxyConnection) connection;
+            //     if (!conn.proxyChannel.isActive()) {
+            //         conn.closeForce();
+            //         cleaned++;
+            //     }
+            // }
 
         }
 

@@ -3,6 +3,7 @@ package com.sunder.juxtapose.common.connection;
 
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.traffic.TrafficCounter;
@@ -57,6 +58,11 @@ public interface Connection {
     ProxyRequest getProxyRequest();
 
     /**
+     * @return 获取proxy channel
+     */
+    Channel getProxyChannel();
+
+    /**
      * 绑定proxy channel, 即写出channel（转发给proxy server端数据的channel）
      *
      * @param channel io.netty.channel.socket.SocketChannel
@@ -91,11 +97,18 @@ public interface Connection {
     ChannelFuture writeMessage(Object message);
 
     /**
-     * 关闭整个连接
+     * 关闭整个连接, 但是保留与代理客户端/服务端一侧的channel，用于复用
      *
      * @return io.netty.channel.ChannelFuture
      */
     ChannelFuture close();
+
+    /**
+     * 彻底关闭整个连接,包括客户端/服务端一侧的连接
+     *
+     * @return io.netty.channel.ChannelFuture
+     */
+    ChannelFuture closeForce();
 
     /**
      * 添加一个状态监听

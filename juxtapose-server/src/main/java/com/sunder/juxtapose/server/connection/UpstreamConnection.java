@@ -29,7 +29,7 @@ public class UpstreamConnection extends ProxyConnection {
                     state, proxyChannel.isActive());
             if (!proxyChannel.isActive()) {
                 logger.info("Proxy channel closed, terminating the connection[{}].", connectId);
-                changeState(ConnectionState.CLOSED);
+                close();
             }
             if (message instanceof ByteBuf) {
                 ReferenceCountUtil.release(message);
@@ -48,13 +48,32 @@ public class UpstreamConnection extends ProxyConnection {
                     state, proxyRequest.isActive());
             if (!proxyRequest.isActive()) {
                 logger.info("Client channel closed, terminating the connection[{}].", connectId);
-                close();
+                closeForce();
             }
             if (message instanceof ByteBuf) {
                 ReferenceCountUtil.release(message);
             }
             return null;
         }
+    }
+
+
+    @Override
+    public ChannelFuture close() {
+        try {
+            lock.lock();
+            if (state != ConnectionState.CLOSED) {
+                changeState(ConnectionState.CLOSED);
+                if (proxyChannel != null && proxyChannel.isActive()) {
+                    proxyChannel.attr(CONNECT_KEY).set(null);
+                    return proxyChannel.close().addListener(f ->
+                            logger.info("Close connection[{}] success.", connectId));
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+        return null;
     }
 
     public ChannelFuture getChannelFuture() {

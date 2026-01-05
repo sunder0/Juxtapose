@@ -148,13 +148,15 @@ public class ProxyRequest {
     /**
      * 关闭请求，释放资源
      */
-    public void close() {
+    public ChannelFuture close() {
         if (closed.compareAndSet(false, true)) {
-            if (clientChannel != null && clientChannel.isActive()) {
-                clientChannel.close();
-            }
             transfer.releaseMessage();
+
+            if (clientChannel != null) {
+                return clientChannel.close();
+            }
         }
+        throw new UnsupportedOperationException("Repeatedly Closing a Proxy Request!");
     }
 
     @Override

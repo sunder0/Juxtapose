@@ -4,6 +4,7 @@ import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.traffic.TrafficCounter;
@@ -75,7 +76,6 @@ public class ProxyConnection implements Connection {
         try {
             lock.lock();
             this.proxyChannel = channel;
-            channel.attr(CONNECT_KEY).set(this);
             changeState(ConnectionState.CONNECTED);
         } finally {
             lock.unlock();
@@ -109,7 +109,7 @@ public class ProxyConnection implements Connection {
                     state, proxyChannel.isActive());
             if (!proxyChannel.isActive()) {
                 logger.info("Proxy channel closed, terminating the connection[{}].", connectId);
-                close();
+                closeForce();
             }
             if (message instanceof ByteBuf) {
                 ReferenceCountUtil.release(message);
@@ -128,8 +128,7 @@ public class ProxyConnection implements Connection {
                     state, proxyRequest.isActive());
             if (!proxyRequest.isActive()) {
                 logger.info("Client channel closed, terminating the connection[{}].", connectId);
-                proxyRequest.close();
-                changeState(ConnectionState.CLOSED);
+                close();
             }
             if (message instanceof ByteBuf) {
                 ReferenceCountUtil.release(message);
@@ -154,9 +153,23 @@ public class ProxyConnection implements Connection {
             lock.lock();
             if (state != ConnectionState.CLOSED) {
                 changeState(ConnectionState.CLOSED);
+                return proxyRequest.close().addListener(
+                        f -> logger.info("Close connection[{}] success.", connectId));
+            }
+        } finally {
+            lock.unlock();
+        }
+        return null;
+    }
+
+    @Override
+    public ChannelFuture closeForce() {
+        try {
+            lock.lock();
+            if (state != ConnectionState.CLOSED) {
+                changeState(ConnectionState.CLOSED);
                 proxyRequest.close();
                 if (proxyChannel != null && proxyChannel.isActive()) {
-                    proxyChannel.attr(CONNECT_KEY).set(null);
                     return proxyChannel.close().addListener(f ->
                             logger.info("Close connection[{}] success.", connectId));
                 }
@@ -205,6 +218,11 @@ public class ProxyConnection implements Connection {
     @Override
     public ProxyRequest getProxyRequest() {
         return proxyRequest;
+    }
+
+    @Override
+    public Channel getProxyChannel() {
+        return proxyChannel;
     }
 
     /**

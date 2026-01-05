@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.common.pool;
 
+import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.common.connection.Connection;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.bootstrap.Bootstrap;
@@ -13,18 +14,25 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author : denglinhai
  * @date : 10:49 2025/12/31
- * 保持固定连接数量的连接池, 未达到最大数量前一直创建连接，达到后从池中取用，即类似Semaphore机制
+ *         保持固定连接数量的连接池, 未达到最大数量前一直创建连接，达到后从池中取用，即类似Semaphore机制
  */
 public abstract class FixedChannelPool implements ChannelPool {
     protected final Logger logger;
+    protected Semaphore semaphore;
     // 最大连接保持数
     protected final int maximumPoolSize;
     // 连接空闲时长保活时间（单位：毫秒）
@@ -34,6 +42,10 @@ public abstract class FixedChannelPool implements ChannelPool {
 
     protected final AtomicInteger channelSize = new AtomicInteger(0);
     protected final List<Channel> pooled;
+    // 等待队列
+    protected final BlockingQueue<PendingRequest> pendingQueue = new ArrayBlockingQueue<>(256);
+    protected Executor executor = Executors.newSingleThreadScheduledExecutor(
+            ThreadFactoryBuilder.create().setNamePrefix("Fixed-channel-pool-").build());
 
     // 连接超时时间（可配置）
     private final long connectionTimeoutMs;
@@ -48,13 +60,13 @@ public abstract class FixedChannelPool implements ChannelPool {
     /**
      * 完整构造函数
      *
-     * @param bootstrap           引导类
-     * @param maximumPoolSize     最大连接数
-     * @param keepAliveTime       保活时间(ms)，-1表示永久
+     * @param bootstrap 引导类
+     * @param maximumPoolSize 最大连接数
+     * @param keepAliveTime 保活时间(ms)，-1表示永久
      * @param connectionTimeoutMs 连接超时时间(ms)
      */
     public FixedChannelPool(Bootstrap bootstrap, int maximumPoolSize,
-                            long keepAliveTime, long connectionTimeoutMs) {
+            long keepAliveTime, long connectionTimeoutMs) {
         if (maximumPoolSize <= 0) {
             throw new IllegalArgumentException("maximumPoolSize must be positive");
         }
@@ -63,12 +75,29 @@ public abstract class FixedChannelPool implements ChannelPool {
         }
 
         this.logger = LoggerFactory.getLogger(FixedChannelPool.class);
+        this.semaphore = new Semaphore(maximumPoolSize);
         this.bootstrap = bootstrap.clone();
         this.group = bootstrap.config().group();
         this.maximumPoolSize = maximumPoolSize;
         this.keepAliveTime = keepAliveTime;
         this.connectionTimeoutMs = connectionTimeoutMs;
         this.pooled = new CopyOnWriteArrayList<>();
+
+        this.executor.execute(() -> {
+            PendingRequest request;
+            try {
+                while ((request = pendingQueue.poll(10, TimeUnit.MILLISECONDS)) != null) {
+                    Channel channel = tryGetFromPool(request.request);
+                    if (channel != null) {
+                        request.future.complete(channel);
+                    } else {
+                        pendingQueue.offer(request);
+                    }
+                }
+            } catch (InterruptedException ex) {
+                logger.error("Fixed-channel-pool task thread interrupted, {}", ex.getMessage(), ex);
+            }
+        });
     }
 
     @Override
@@ -94,6 +123,11 @@ public abstract class FixedChannelPool implements ChannelPool {
      * 执行获取连接逻辑
      */
     private void doAcquire(CompletableFuture<Channel> future, ProxyRequest request, Connection connection) {
+        if (shutdown.get()) {
+            future.completeExceptionally(new IllegalStateException("Pool is shutting down"));
+            return;
+        }
+
         if (channelSize.get() >= maximumPoolSize) {
             // 尝试从池中获取可用连接
             Channel channel = tryGetFromPool(request);
@@ -101,11 +135,9 @@ public abstract class FixedChannelPool implements ChannelPool {
                 future.complete(channel);
                 return;
             } else {
-                if (channelSize.get() < maximumPoolSize) {
-                    // 创建新连接
-                    createNewChannel(future, request, connection);
-                    return;
-                }
+                // 进入等待队列
+                pendingQueue.offer(new PendingRequest(request, future));
+                return;
             }
         }
 
@@ -137,7 +169,7 @@ public abstract class FixedChannelPool implements ChannelPool {
      * 选择策略
      */
     private int selectChannelIndex(ProxyRequest request) {
-        //todo: 可扩展不同的策略
+        // todo: 可扩展不同的策略
         return Math.abs(request.hashCode() % pooled.size());
     }
 
@@ -201,33 +233,41 @@ public abstract class FixedChannelPool implements ChannelPool {
     /**
      * 创建新连接
      */
-    private void createNewChannel(CompletableFuture<Channel> future,
-                                  ProxyRequest request, Connection connection) {
+    private void createNewChannel(CompletableFuture<Channel> future, ProxyRequest request, Connection connection) {
         if (shutdown.get()) {
             future.completeExceptionally(new IllegalStateException("Pool is shutting down"));
             return;
         }
 
-        ChannelFuture channelFuture = createNewChannel0(request, connection);
-
-        // 超时控制
-        // group.next().schedule(() -> {
-        //     if (!future.isDone()) {
-        //         future.completeExceptionally(new TimeoutException(
-        //                 "Connection creation timeout after " + connectionTimeoutMs + "ms"));
-        //         channelFuture.cancel(true);
-        //     }
-        // }, connectionTimeoutMs, TimeUnit.MILLISECONDS);
-
-        channelFuture.addListener((ChannelFutureListener) cf -> {
-            if (cf.isSuccess()) {
-                channelSize.incrementAndGet();
-                pooled.add(cf.channel());
-                future.complete(cf.channel());
-            } else if (!future.isDone()) {
-                future.completeExceptionally(cf.cause());
+        try {
+            boolean acquire = semaphore.tryAcquire();
+            if (!acquire) {
+                Channel channel = tryGetFromPool(request);
+                if (channel != null) {
+                    future.complete(channel);
+                    return;
+                } else {
+                    pendingQueue.offer(new PendingRequest(request, future));
+                    return;
+                }
             }
-        });
+
+            ChannelFuture channelFuture = createNewChannel0(request, connection);
+            channelFuture.addListener((ChannelFutureListener) cf -> {
+                if (cf.isSuccess()) {
+                    channelSize.incrementAndGet();
+                    pooled.add(cf.channel());
+                    future.complete(cf.channel());
+                    semaphore.release();
+                } else {
+                    future.completeExceptionally(cf.cause());
+                    semaphore.release();
+                }
+            });
+        } catch (Exception ex) {
+            logger.error("Create new channel error[{}].", ex.getMessage(), ex);
+            semaphore.release();
+        }
     }
 
     /**
@@ -250,9 +290,22 @@ public abstract class FixedChannelPool implements ChannelPool {
     /**
      * 创建一个新的连接
      *
-     * @param request    代理请求
+     * @param request 代理请求
      * @param connection 逻辑连接
      * @return channelFuture
      */
     protected abstract ChannelFuture createNewChannel0(ProxyRequest request, Connection connection);
+
+    /**
+     * 未获取到channel的等待请求
+     */
+    private class PendingRequest {
+        ProxyRequest request;
+        CompletableFuture<Channel> future;
+
+        public PendingRequest(ProxyRequest request, CompletableFuture<Channel> future) {
+            this.request = request;
+            this.future = future;
+        }
+    }
 }

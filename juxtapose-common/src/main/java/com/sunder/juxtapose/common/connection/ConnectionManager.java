@@ -3,8 +3,10 @@ package com.sunder.juxtapose.common.connection;
 
 import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,6 +45,22 @@ public interface ConnectionManager {
      * @return
      */
     Connection getConnection(String connectionId);
+
+    /**
+     * 根据client channel获取与其关联的connections
+     *
+     * @param clientChannel 客户端channel
+     * @return
+     */
+    List<Connection> getConnectionsByClientChannel(Channel clientChannel);
+
+    /**
+     * 根据client channel获取与其关联的connections
+     *
+     * @param proxyChannel 代理channel
+     * @return
+     */
+    List<Connection> getConnectionsByProxyChannel(Channel proxyChannel);
 
     /**
      * 是否存在连接

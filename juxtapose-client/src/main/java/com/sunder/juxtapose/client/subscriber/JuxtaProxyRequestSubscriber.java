@@ -41,7 +41,9 @@ import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 import io.netty.util.ReferenceCountUtil;
 
+import java.util.Deque;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -52,6 +54,9 @@ import java.util.function.Consumer;
 public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
         implements ProxyRequestSubscriber, ProxyMessageReceiver, ProxyNodeLatencyTest {
     public final static String NAME = "JUXTA_PROXY_SERVER";
+
+    private final static int LOW_WATER_MARK = 128 * 1024; // 低水位线
+    private final static int HIGH_WATER_MARK = 256 * 1024; // 高水位线
 
     private Bootstrap bootstrap;
     private final ProxyServerNodeConfig cfg;
@@ -74,7 +79,10 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         bootstrap.group(Platform.createEventLoopGroup(2))
                 .channel(Platform.socketChannelClass())
                 .option(ChannelOption.SO_KEEPALIVE, true)
+                .option(ChannelOption.AUTO_CLOSE, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
+                // .option(ChannelOption.WRITE_BUFFER_WATER_MARK,
+                //         new WriteBufferWaterMark(LOW_WATER_MARK, HIGH_WATER_MARK));
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel socketChannel) throws Exception {
@@ -84,10 +92,9 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                     pipeline.addLast(
                             certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
                 }
+                pipeline.addLast(RelayMessageWriteEncoder.INSTANCE);
                 pipeline.addLast(new LengthFieldBasedFrameDecoder(Message.LENGTH_MAX_FRAME,
                         Message.LENGTH_FILED_OFFSET, Message.LENGTH_FILED_LENGTH, 0, 0));
-                pipeline.addLast(RelayMessageWriteEncoder.INSTANCE);
-                pipeline.addLast(new HeartbeatHandler());
             }
         });
 
@@ -136,7 +143,13 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
         ProxyRequestMessage proxyMessage = new ProxyRequestMessage(
                 serialId, connection.getContent().getProxyHost(), connection.getContent().getProxyPort(), message);
-        connection.writeMessage(proxyMessage);
+        Channel channel = connection.getProxyChannel();
+        if (channel.isWritable()) {
+            connection.writeMessage(proxyMessage);
+        } else {
+            ProxyRelayMessageHandler handler = channel.pipeline().get(ProxyRelayMessageHandler.class);
+            handler.writePendingWrites(channel, proxyMessage);
+        }
     }
 
     @Override
@@ -146,9 +159,11 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
     }
 
     /**
-     * 心跳检测处理
+     * 与代理服务器通信
      */
-    private class HeartbeatHandler extends ChannelInboundHandlerAdapter {
+    private class ProxyRelayMessageHandler extends ChannelInboundHandlerAdapter {
+        private final Deque<ProxyRequestMessage> pendingWrites = new ConcurrentLinkedDeque<>();
+        private volatile boolean writing = false; // 是否正在写入
 
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -185,13 +200,6 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
             ctx.channel().writeAndFlush(message);
         }
 
-    }
-
-    /**
-     * 与代理服务器通信
-     */
-    private class ProxyRelayMessageHandler extends ChannelInboundHandlerAdapter {
-
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             if (cfg.auth) {
@@ -202,6 +210,11 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
             }
 
             ctx.fireChannelActive();
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            logger.error("Juxta proxy channel close an error[{}].", ctx.channel().id());
         }
 
         @Override
@@ -232,6 +245,9 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
             }
         }
 
+        /**
+         * 认证权限处理
+         */
         private void handleAuthResponseMessage(ChannelHandlerContext ctx, AuthResponseMessage message) {
             if (!message.isPassed()) {
                 logger.error("Proxy server[{}:{}] auth verify failed, errorMsg:[{}].", cfg.server, cfg.port,
@@ -242,6 +258,9 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
             }
         }
 
+        /**
+         * 接受转发代理返回消息
+         */
         private void handleProxyResponseMessage(ChannelHandlerContext ctx, ProxyResponseMessage message) {
             logger.debug("receive proxy server message...[{}]", message.getSerialId());
             if (message.isSuccess()) {
@@ -258,11 +277,61 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         }
 
         @Override
+        public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+            if (ctx.channel().isWritable()) {
+                // Channel 重新可写，处理积压的数据
+                flushPendingWrites(ctx);
+            } else {
+                // Channel 不可写
+                logger.info("Channel is not writable! Pending writes:{}.", pendingWrites.size());
+            }
+
+            super.channelWritabilityChanged(ctx);
+        }
+
+        /**
+         * channel不可写时，在写入队列等待处理
+         */
+        public boolean writePendingWrites(Channel channel, ProxyRequestMessage message) {
+            if (pendingWrites.size() > 10000) {
+                // Todo：暂时策略：丢弃最老的数据
+                ProxyRequestMessage oldest = pendingWrites.poll();
+                oldest.getContent().release();
+                logger.error("Discarded oldest message due to backpressure");
+                return false;
+            }
+
+            if (!channel.isWritable() && channel.isActive()) {
+                return pendingWrites.offer(message);
+            }
+            return false;
+        }
+
+        /**
+         * 暂存的待处理数据写入channel
+         *
+         * @param ctx io.netty.channel.ChannelHandlerContext
+         */
+        private void flushPendingWrites(ChannelHandlerContext ctx) {
+            if (writing) {
+                return;
+            }
+            writing = true;
+
+            Channel channel = ctx.channel();
+            while (channel.isWritable() && !pendingWrites.isEmpty()) {
+                channel.write(pendingWrites.poll());
+            }
+            channel.flush();
+            writing = false;
+        }
+
+        @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.error(cause.getMessage(), cause);
+            logger.error("Juxta proxy channel encountered an error[{}].", cause.getMessage(), cause);
             fixedChannelPool.release(ctx.channel());
             ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                logger.info("Channel[{}] close..", ctx.channel().id());
+                logger.info("Juxta channel close[{}]...", ctx.channel().id());
             });
         }
     }
