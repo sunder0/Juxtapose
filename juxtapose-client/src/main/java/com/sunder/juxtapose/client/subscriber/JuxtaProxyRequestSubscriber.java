@@ -34,6 +34,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -55,8 +56,8 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         implements ProxyRequestSubscriber, ProxyMessageReceiver, ProxyNodeLatencyTest {
     public final static String NAME = "JUXTA_PROXY_SERVER";
 
-    private final static int LOW_WATER_MARK = 128 * 1024; // 低水位线
-    private final static int HIGH_WATER_MARK = 256 * 1024; // 高水位线
+    private final static int LOW_WATER_MARK = 32 * 1024; // 低水位线
+    private final static int HIGH_WATER_MARK = 1024 * 1024; // 高水位线
 
     private Bootstrap bootstrap;
     private final ProxyServerNodeConfig cfg;
@@ -76,18 +77,20 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
     @Override
     protected void initInternal() {
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(Platform.createEventLoopGroup(2))
+        bootstrap.group(Platform.createEventLoopGroup(8))
                 .channel(Platform.socketChannelClass())
                 .option(ChannelOption.SO_KEEPALIVE, true)
-                .option(ChannelOption.AUTO_CLOSE, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
-                // .option(ChannelOption.WRITE_BUFFER_WATER_MARK,
-                //         new WriteBufferWaterMark(LOW_WATER_MARK, HIGH_WATER_MARK));
+                .option(ChannelOption.SO_SNDBUF, 1024 * 1024)  // 1MB发送缓冲区
+                .option(ChannelOption.SO_RCVBUF, 1024 * 1024)  // 1MB接收缓冲区
+                .option(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+                .option(ChannelOption.WRITE_BUFFER_WATER_MARK,
+                        new WriteBufferWaterMark(LOW_WATER_MARK, HIGH_WATER_MARK));
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel socketChannel) throws Exception {
                 ChannelPipeline pipeline = socketChannel.pipeline();
-                pipeline.addLast(new ChannelTrafficShapingHandler(1000));
+                pipeline.addLast(new ChannelTrafficShapingHandler(300 * 1024 * 1024, 300 * 1024 * 1024, 1000));
                 if (cfg.tls) {
                     pipeline.addLast(
                             certComponent.getSslContext().newHandler(socketChannel.alloc(), cfg.server, cfg.port));
@@ -147,8 +150,10 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         if (channel.isWritable()) {
             connection.writeMessage(proxyMessage);
         } else {
-            ProxyRelayMessageHandler handler = channel.pipeline().get(ProxyRelayMessageHandler.class);
-            handler.writePendingWrites(channel, proxyMessage);
+            if (channel.isActive()) {
+                ProxyRelayMessageHandler handler = channel.pipeline().get(ProxyRelayMessageHandler.class);
+                handler.writePendingWrites(channel, proxyMessage);
+            }
         }
     }
 
@@ -279,11 +284,11 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         @Override
         public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
             if (ctx.channel().isWritable()) {
-                // Channel 重新可写，处理积压的数据
+                logger.info("Channel[{}] is writable, will write pending data...", ctx.channel().id());
                 flushPendingWrites(ctx);
             } else {
-                // Channel 不可写
-                logger.info("Channel is not writable! Pending writes:{}.", pendingWrites.size());
+                logger.info("Channel[{}] is not writable! Pending writes:[{}].", ctx.channel().id(),
+                        pendingWrites.size());
             }
 
             super.channelWritabilityChanged(ctx);
@@ -293,12 +298,12 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
          * channel不可写时，在写入队列等待处理
          */
         public boolean writePendingWrites(Channel channel, ProxyRequestMessage message) {
-            if (pendingWrites.size() > 10000) {
-                // Todo：暂时策略：丢弃最老的数据
+            if (pendingWrites.size() > 999) {
+                // Todo：暂时策略：尝试写入最老的数据
                 ProxyRequestMessage oldest = pendingWrites.poll();
-                oldest.getContent().release();
-                logger.error("Discarded oldest message due to backpressure");
-                return false;
+                channel.writeAndFlush(oldest);
+                logger.error("Try write oldest message due to network speed slow...");
+                return pendingWrites.offer(message);
             }
 
             if (!channel.isWritable() && channel.isActive()) {

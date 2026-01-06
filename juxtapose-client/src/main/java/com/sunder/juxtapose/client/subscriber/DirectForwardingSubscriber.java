@@ -37,11 +37,11 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
     public DirectForwardingSubscriber(ProxyServerNodeManager parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(new NioEventLoopGroup(2))
+        bootstrap.group(new NioEventLoopGroup(8))
                 .channel(NioSocketChannel.class)
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.AUTO_CLOSE, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10 * 1000);
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5 * 1000);
         this.bootstrap = bootstrap;
 
         parent.registerProxyRequestSubscriber(this);

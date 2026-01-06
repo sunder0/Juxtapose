@@ -16,6 +16,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -84,6 +85,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(eventLoopGroup)
                     .channel(serverSocketChannel)
+                    .childOption(ChannelOption.SO_KEEPALIVE, true)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {

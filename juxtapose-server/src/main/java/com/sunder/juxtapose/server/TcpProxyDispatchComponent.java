@@ -48,10 +48,9 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
     public TcpProxyDispatchComponent(ProxyCoreComponent parent) {
         super(NAME, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
 
-        this.bootstrap = new Bootstrap().group(Platform.createEventLoopGroup(2))
+        this.bootstrap = new Bootstrap().group(Platform.createEventLoopGroup(8))
                 .channel(Platform.socketChannelClass())
                 .option(ChannelOption.SO_KEEPALIVE, true)
-                .option(ChannelOption.AUTO_CLOSE, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
         this.connManager = getModuleByName(UpstreamConnectionManager.NAME, true, UpstreamConnectionManager.class);
     }
@@ -146,7 +145,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                             firstBytebuf.release();
                         }
                     } else {
-                        logger.info("reuse proxy connection[{}]", request.getHost());
+                        logger.debug("reuse proxy connection[{}]", request.getHost());
                         UpstreamConnection connection =
                                 (UpstreamConnection) connManager.getConnection(request.getSerialId().toString());
                         if (connection == null) {

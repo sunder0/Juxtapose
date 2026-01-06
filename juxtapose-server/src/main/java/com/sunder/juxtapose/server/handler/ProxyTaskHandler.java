@@ -5,7 +5,9 @@ import com.sunder.juxtapose.common.connection.Connection;
 import com.sunder.juxtapose.common.mesage.ProxyResponseMessage;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import com.sunder.juxtapose.server.ProxyTaskRequest;
+import com.sunder.juxtapose.server.proxy.JuxtaProxyTaskPublisher.ProxyRelayMessageHandler;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
@@ -32,20 +34,40 @@ public class ProxyTaskHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ByteBuf) {
             ByteBuf byteBuf = (ByteBuf) msg;
+
             if (request.getProtocol() == ProxyProtocol.SOCKS5 || request.getProtocol() == ProxyProtocol.HTTP) {
                 connection.readMessage(byteBuf);
             } else if (request.getProtocol() == ProxyProtocol.JUXTA) {
-                ProxyResponseMessage message = new ProxyResponseMessage(request.getSerialId(), byteBuf);
-                connection.readMessage(message.serialize(ctx.alloc()));
+                handleJuxtaMessage(ctx, byteBuf);
             }
         } else {
             ReferenceCountUtil.release(msg);
         }
     }
 
+    /**
+     * 处理juxta返回消息
+     *
+     * @param ctx
+     * @param byteBuf
+     */
+    private void handleJuxtaMessage(ChannelHandlerContext ctx, ByteBuf byteBuf) {
+        ProxyResponseMessage message = new ProxyResponseMessage(request.getSerialId(), byteBuf);
+
+        Channel channel = request.getClientChannel();
+        if (channel.isWritable()) {
+            connection.readMessage(message.serialize(ctx.alloc()));
+        } else {
+            if (channel.isActive()) {
+                ProxyRelayMessageHandler handler = channel.pipeline().get(ProxyRelayMessageHandler.class);
+                handler.writePendingWrites(channel, message.serialize(ctx.alloc()));
+            }
+        }
+    }
+
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        logger.error(cause.getMessage(), cause);
         connection.close();
+        logger.error(cause.getMessage(), cause);
     }
 }

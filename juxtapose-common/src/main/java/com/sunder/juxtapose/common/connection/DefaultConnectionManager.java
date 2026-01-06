@@ -135,12 +135,6 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
         int cleaned = 0;
         long now = System.currentTimeMillis();
         for (Connection connection : connectionMap.values()) {
-            // 清理超时或无效连接
-            if (connection.getState() == ConnectionState.CLOSED || connection.getState() == ConnectionState.ERROR) {
-                connection.close();
-                cleaned++;
-            }
-
             // 清理空闲连接
             ConnectionStats stats = connection.getStats();
             if (now - stats.getLastActivityTime() > TimeUnit.MINUTES.toMillis(5)) {
@@ -155,15 +149,6 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
                 logger.warn("Connection[{}] authentication timeout, closing", connection.getConnectId());
                 cleaned++;
             }
-
-            // if (connection instanceof ProxyConnection) {
-            //     ProxyConnection conn = (ProxyConnection) connection;
-            //     if (!conn.proxyChannel.isActive()) {
-            //         conn.closeForce();
-            //         cleaned++;
-            //     }
-            // }
-
         }
 
         if (cleaned > 0) {
