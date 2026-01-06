@@ -1,6 +1,7 @@
 package com.sunder.juxtapose.common.connection;
 
 import com.sunder.juxtapose.common.ProxyProtocol;
+import com.sunder.juxtapose.common.mesage.ProxyCloseMessage;
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.buffer.ByteBuf;
@@ -31,6 +32,7 @@ public class ProxyConnection implements Connection {
     protected final Lock lock = new ReentrantLock();
 
     protected Long connectId;
+    protected ProxyProtocol protocol;
     protected volatile ConnectionState state;
     protected ProxyRequest proxyRequest; // 包含代理请求信息和连接用户端的channel
     protected SocketChannel proxyChannel; // 连接代理服务器channel
@@ -40,6 +42,7 @@ public class ProxyConnection implements Connection {
     private List<ConnectionStateListener> listeners = new CopyOnWriteArrayList<>();
 
     public ProxyConnection(ProxyProtocol protocol, ProxyRequest proxyRequest) {
+        this.protocol = protocol;
         this.logger = LoggerFactory.getLogger(ProxyConnection.class);
         this.proxyRequest = Objects.requireNonNull(proxyRequest);
         this.connectId = proxyRequest.getSerialId();
@@ -153,6 +156,12 @@ public class ProxyConnection implements Connection {
             lock.lock();
             if (state != ConnectionState.CLOSED) {
                 changeState(ConnectionState.CLOSED);
+                // 通知对端对应的连接关闭
+                if (proxyChannel.isActive()) {
+                    if (protocol == ProxyProtocol.JUXTA) {
+                        proxyChannel.writeAndFlush(new ProxyCloseMessage(connectId));
+                    }
+                }
                 return proxyRequest.close().addListener(
                         f -> logger.info("Close connection[{}] success.", connectId));
             }

@@ -14,6 +14,7 @@ import com.sunder.juxtapose.common.mesage.AuthResponseMessage;
 import com.sunder.juxtapose.common.mesage.Message;
 import com.sunder.juxtapose.common.mesage.PingMessage;
 import com.sunder.juxtapose.common.mesage.PongMessage;
+import com.sunder.juxtapose.common.mesage.ProxyCloseMessage;
 import com.sunder.juxtapose.common.mesage.ProxyRequestMessage;
 import com.sunder.juxtapose.server.CertComponent;
 import com.sunder.juxtapose.server.ProxyCoreComponent;
@@ -214,6 +215,9 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
                         case ProxyRequestMessage.SERVICE_ID:
                             handleRequestMessage(byteBuf, ctx);
                             break;
+                        case ProxyCloseMessage.SERVICE_ID:
+                            handleCloseMessage(byteBuf, ctx);
+                            break;
                     }
                 } finally {
                     byteBuf.release();
@@ -252,6 +256,22 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
 
             ProxyTaskRequest request = new ProxyTaskRequest(ProxyProtocol.JUXTA, message, ctx.channel());
             JuxtaProxyTaskPublisher.this.publishProxyTask(request);
+        }
+
+        /**
+         * 处理关闭消息
+         *
+         * @param byteBuf
+         * @param ctx
+         */
+        private void handleCloseMessage(ByteBuf byteBuf, ChannelHandlerContext ctx) {
+            ProxyCloseMessage message = new ProxyCloseMessage(byteBuf);
+            logger.info("Receive proxy close message[{}, {}].", message.getSerialId(), ctx.channel().id());
+
+            Connection connection = connManager.getConnection(message.getSerialId().toString());
+            if (connection != null) {
+                connection.close();
+            }
         }
 
         @Override
