@@ -161,6 +161,9 @@ public class ProxyConnection implements Connection {
                     if (protocol == ProxyProtocol.JUXTA) {
                         proxyChannel.writeAndFlush(new ProxyCloseMessage(connectId));
                     }
+                    if (protocol == ProxyProtocol.DIRECT) {
+                        proxyChannel.close();
+                    }
                 }
                 return proxyRequest.close().addListener(
                         f -> logger.info("Close connection[{}] success.", connectId));

@@ -120,7 +120,8 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
 
                     boolean connected = connManager.containsConnection(request.getSerialId().toString());
                     if (!connected) {
-                        logger.info("start proxy connect real server[{}].", request.getHost());
+                        logger.info("start proxy connect[{}] real server[{}].", request.getSerialId(),
+                                request.getHost());
 
                         ProxyRequest proxy = new ProxyRequest(request.getProtocol(), request.getSerialId(),
                                 request.getHost(), request.getPort(), request.getClientChannel());
