@@ -37,7 +37,16 @@ public class RateDisplay extends HBox {
     }
 
     public void updateRates(double uploadRate, double downloadRate) {
-        uploadLabel.setText(String.format("↑ %.2f KB/s", uploadRate));
-        downloadLabel.setText(String.format("↓ %.2f KB/s", downloadRate));
+        if (uploadRate < 1024 * 1024) {
+            uploadLabel.setText(String.format("↑ %.2f KB/s", uploadRate / 1024));
+        } else {
+            uploadLabel.setText(String.format("↑ %.2f MB/s", uploadRate / 1024 / 1024));
+        }
+
+        if (downloadRate < 1024 * 1024) {
+            downloadLabel.setText(String.format("↓ %.2f KB/s", downloadRate / 1024));
+        } else {
+            downloadLabel.setText(String.format("↓ %.2f MB/s", downloadRate / 1024 / 1024));
+        }
     }
 }

@@ -3,7 +3,7 @@ proxies:
     server: 127.0.0.1
     port: 2201
     tls: true
-    type: HTTP
+    type: JUXTA
     username: root
     password: root
 

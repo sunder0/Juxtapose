@@ -195,10 +195,10 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             timeline.play();
         }
 
-        // 更新上传下载速率（模拟数据）
+        // 更新上传下载速率
         private void updateRates() {
-            double uploadRate = (double) cac.getUploadBytes() / 1024;
-            double downloadRate = (double) cac.getDownloadBytes() / 1024;
+            double uploadRate = (double) cac.getUploadBytes();
+            double downloadRate = (double) cac.getDownloadBytes();
 
             if (rateDisplay != null) {
                 rateDisplay.updateRates(uploadRate, downloadRate);
