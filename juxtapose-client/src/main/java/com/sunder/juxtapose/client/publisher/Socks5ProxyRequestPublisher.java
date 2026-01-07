@@ -10,6 +10,8 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
+import com.sunder.juxtapose.common.connection.ConnectionManager;
+import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import com.sunder.juxtapose.common.proxy.ProxyRequestPublisher;
 import io.netty.bootstrap.ServerBootstrap;
@@ -56,6 +58,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
     private String password;
     private Class<? extends ServerSocketChannel> serverSocketChannel;
     private EventLoopGroup eventLoopGroup;
+    private ConnectionManager connectionManager;
     private StandardDnsResolverPool dnsResolver = StandardDnsResolverPool.dnsResolver;
 
     public Socks5ProxyRequestPublisher(ProxyCoreComponent parent) {
@@ -75,6 +78,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
 
         this.serverSocketChannel = Platform.serverSocketChannelClass();
         this.eventLoopGroup = Platform.createEventLoopGroup(3);
+        this.connectionManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
 
         super.initInternal();
     }
@@ -223,7 +227,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
 
                     ctx.channel().eventLoop().execute(() -> {
                         if (ctx.pipeline().get(SocksRequestHandler.class) != null) {
-                            ctx.pipeline().addLast(new TcpProxyMessageHandler(pr));
+                            ctx.pipeline().addLast(new TcpProxyMessageHandler(pr, connectionManager));
                             ctx.pipeline().remove(SocksRequestHandler.this);
                             ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, addressType));
                         } else {

@@ -157,7 +157,7 @@ public class ProxyConnection implements Connection {
             if (state != ConnectionState.CLOSED) {
                 changeState(ConnectionState.CLOSED);
                 // 通知对端对应的连接关闭
-                if (proxyChannel.isActive()) {
+                if (proxyChannel != null && proxyChannel.isActive()) {
                     if (protocol == ProxyProtocol.JUXTA) {
                         proxyChannel.writeAndFlush(new ProxyCloseMessage(connectId));
                     }

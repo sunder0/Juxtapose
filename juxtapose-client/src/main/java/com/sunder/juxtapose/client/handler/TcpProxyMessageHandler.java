@@ -1,5 +1,7 @@
 package com.sunder.juxtapose.client.handler;
 
+import com.sunder.juxtapose.common.connection.Connection;
+import com.sunder.juxtapose.common.connection.ConnectionManager;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -13,10 +15,22 @@ import org.slf4j.LoggerFactory;
  */
 public class TcpProxyMessageHandler extends ChannelInboundHandlerAdapter {
     private final Logger logger = LoggerFactory.getLogger(TcpProxyMessageHandler.class);
+    private final String connectId;
     private final ProxyRequest proxyRequest;
+    private final ConnectionManager connectionManager;
 
-    public TcpProxyMessageHandler(ProxyRequest request) {
+    public TcpProxyMessageHandler(ProxyRequest request, ConnectionManager connectionManager) {
+        this.connectId = request.getSerialId().toString();
         this.proxyRequest = request;
+        this.connectionManager = connectionManager;
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        Connection connection = connectionManager.getConnection(connectId);
+        if (connection != null) {
+            connection.close();
+        }
     }
 
     @Override
@@ -35,7 +49,11 @@ public class TcpProxyMessageHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        logger.error(cause.getMessage(), cause);
+        logger.error("Socks5 client channel encountered an error[{}].", cause.getMessage(), cause);
+        Connection connection = connectionManager.getConnection(connectId);
+        if (connection != null) {
+            connection.close();
+        }
     }
 
 }

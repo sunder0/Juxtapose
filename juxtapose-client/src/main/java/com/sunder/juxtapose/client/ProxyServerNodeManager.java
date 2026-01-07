@@ -37,6 +37,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComponent> {
     public final static String NAME = "PROXY_SERVER_NODE_MANAGER";
 
+    private final static int MAX_DIRECT_SUBSCRIBER_NODES = 3;
+
     private final AtomicBoolean updProxy = new AtomicBoolean(false);
     private final Queue<ProxyRequest> updCacheQueue = new ConcurrentLinkedQueue<>();
 
@@ -70,12 +72,13 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         addChildComponent(certComponent = new CertComponent(this));
 
         // 添加代理订阅
-        addChildComponent(new DirectForwardingSubscriber(this));
+        for (int i = 0; i < MAX_DIRECT_SUBSCRIBER_NODES; i++) {
+            addChildComponent(new DirectForwardingSubscriber(i, this));
+        }
         loadProxySubscribers();
 
         ClientConfig ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);
         urlTestVisitor = new ProxyServerUrlTestVisitor(ccfg);
-        // ClientApplicationContext.CONTEXT.registerProxyNodeManager(this);
 
         super.initInternal();
     }
