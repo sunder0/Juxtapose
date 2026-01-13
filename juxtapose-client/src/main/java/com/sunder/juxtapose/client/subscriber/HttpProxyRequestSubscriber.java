@@ -26,6 +26,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
@@ -40,7 +41,9 @@ import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Deque;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.Consumer;
 
 /**
@@ -50,6 +53,9 @@ import java.util.function.Consumer;
 public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
         implements ProxyRequestSubscriber, ProxyMessageReceiver, ProxyNodeLatencyTest {
     public final static String NAME = "HTTP_PROXY_SERVER";
+
+    private final static int LOW_WATER_MARK = 32 * 1024; // 低水位线
+    private final static int HIGH_WATER_MARK = 1024 * 1024; // 高水位线
 
     private Bootstrap bootstrap;
     private final ProxyServerNodeConfig cfg;
@@ -69,11 +75,15 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
     @Override
     protected void initInternal() {
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(Platform.createEventLoopGroup(2))
+        bootstrap.group(Platform.createEventLoopGroup(8))
                 .channel(Platform.socketChannelClass())
-                //.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                 .option(ChannelOption.SO_KEEPALIVE, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
+                .option(ChannelOption.SO_SNDBUF, 1024 * 1024)  // 1MB发送缓冲区
+                .option(ChannelOption.SO_RCVBUF, 1024 * 1024)  // 1MB接收缓冲区
+                .option(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
+                .option(ChannelOption.WRITE_BUFFER_WATER_MARK,
+                        new WriteBufferWaterMark(LOW_WATER_MARK, HIGH_WATER_MARK));
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel socketChannel) throws Exception {
@@ -137,7 +147,20 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
     @Override
     public void receive(Long serialId, ByteBuf message) {
         Connection connection = connManager.getConnection(serialId.toString());
-        connection.writeMessage(message);
+        Channel channel = connection.getProxyChannel();
+        if (channel.isWritable()) {
+            connection.writeMessage(message);
+        } else {
+            if (channel.isActive()) {
+                HttpTunnelMessageHandler handler = channel.pipeline().get(HttpTunnelMessageHandler.class);
+                handler.writePendingWrites(channel, message);
+            } else {
+                message.release();
+                cachedChannelPool.release(channel);
+                connection.closeForce();
+            }
+        }
+
     }
 
     @Override
@@ -218,11 +241,11 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.error(cause.getMessage(), cause);
+            logger.error("Http(s) proxy channel encountered an error[{}].", cause.getMessage(), cause);
             connection.close();
             cachedChannelPool.release(ctx.channel());
             ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                logger.info("Channel[{}] close..", ctx.channel().id());
+                logger.info("Http(s) channel close[{}]...", ctx.channel().id());
             });
         }
 
@@ -249,9 +272,16 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
      */
     private class HttpTunnelMessageHandler extends ChannelInboundHandlerAdapter {
         private Connection connection;
+        private volatile boolean writing = false; // 是否正在写入
+        private final Deque<ByteBuf> pendingWrites = new ConcurrentLinkedDeque<>();
 
         public HttpTunnelMessageHandler(Connection connection) {
             this.connection = connection;
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            logger.error("Http(s) proxy channel close an error[{}].", ctx.channel().id());
         }
 
         @Override
@@ -283,12 +313,62 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         }
 
         @Override
+        public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+            if (ctx.channel().isWritable()) {
+                logger.info("Channel[{}] is writable, will write pending data...", ctx.channel().id());
+                flushPendingWrites(ctx);
+            } else {
+                logger.info("Channel[{}] is not writable! Pending writes:[{}].", ctx.channel().id(),
+                        pendingWrites.size());
+            }
+
+            super.channelWritabilityChanged(ctx);
+        }
+
+        /**
+         * channel不可写时，在写入队列等待处理
+         */
+        public boolean writePendingWrites(Channel channel, ByteBuf message) {
+            if (pendingWrites.size() > 999) {
+                // Todo：暂时策略：尝试写入最老的数据
+                ByteBuf oldest = pendingWrites.poll();
+                channel.writeAndFlush(oldest);
+                logger.error("Try write oldest message due to network speed slow...");
+                return pendingWrites.offer(message);
+            }
+
+            if (!channel.isWritable() && channel.isActive()) {
+                return pendingWrites.offer(message);
+            }
+            return false;
+        }
+
+        /**
+         * 暂存的待处理数据写入channel
+         *
+         * @param ctx io.netty.channel.ChannelHandlerContext
+         */
+        private void flushPendingWrites(ChannelHandlerContext ctx) {
+            if (writing) {
+                return;
+            }
+            writing = true;
+
+            Channel channel = ctx.channel();
+            while (channel.isWritable() && !pendingWrites.isEmpty()) {
+                channel.write(pendingWrites.poll());
+            }
+            channel.flush();
+            writing = false;
+        }
+
+        @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.error(cause.getMessage(), cause);
+            logger.error("Http(s) proxy channel encountered an error[{}].", cause.getMessage(), cause);
             connection.close();
             cachedChannelPool.release(ctx.channel());
             ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                logger.info("Channel[{}] close..", ctx.channel().id());
+                logger.info("Http(s) channel close[{}]...", ctx.channel().id());
             });
         }
     }

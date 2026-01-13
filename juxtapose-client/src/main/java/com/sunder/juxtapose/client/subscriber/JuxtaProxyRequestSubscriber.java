@@ -153,6 +153,10 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
             if (channel.isActive()) {
                 ProxyRelayMessageHandler handler = channel.pipeline().get(ProxyRelayMessageHandler.class);
                 handler.writePendingWrites(channel, proxyMessage);
+            } else {
+                message.release();
+                fixedChannelPool.release(channel);
+                connection.closeForce();
             }
         }
     }
