@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @date : 15:22 2025/09/11
  */
 public class StandardDnsResolverPool {
-    public final static StandardDnsResolverPool dnsResolver = new StandardDnsResolverPool(3);
+    public final static StandardDnsResolverPool dnsResolver = new StandardDnsResolverPool(6);
 
     private final DnsNameResolver[] resolvers;
     private final AtomicInteger index = new AtomicInteger(0);

@@ -225,15 +225,13 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                     ProxyRequest pr = new ProxyRequest(host, port, domain, ip, ctx.channel());
                     Socks5ProxyRequestPublisher.this.publishProxyRequest(pr);
 
-                    ctx.channel().eventLoop().execute(() -> {
-                        if (ctx.pipeline().get(SocksRequestHandler.class) != null) {
-                            ctx.pipeline().addLast(new TcpProxyMessageHandler(pr, connectionManager));
-                            ctx.pipeline().remove(SocksRequestHandler.this);
-                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, addressType));
-                        } else {
-                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.FAILURE, addressType));
-                        }
-                    });
+                    if (ctx.pipeline().get(SocksRequestHandler.class) != null) {
+                        ctx.pipeline().addLast(new TcpProxyMessageHandler(pr, connectionManager));
+                        ctx.pipeline().remove(SocksRequestHandler.this);
+                        ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.SUCCESS, addressType));
+                    } else {
+                        ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.FAILURE, addressType));
+                    }
                 }
                 break;
 

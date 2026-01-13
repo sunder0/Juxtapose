@@ -10,6 +10,9 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.auth.AuthenticationStrategy;
 import com.sunder.juxtapose.common.auth.SimpleAuthenticationStrategy;
+import com.sunder.juxtapose.common.connection.Connection;
+import com.sunder.juxtapose.common.connection.ConnectionManager;
+import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import com.sunder.juxtapose.common.proxy.ProxyRequestPublisher;
 import io.netty.bootstrap.ServerBootstrap;
@@ -64,6 +67,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
     private String password;
     private Class<? extends ServerSocketChannel> serverSocketChannel;
     private EventLoopGroup eventLoopGroup;
+    private ConnectionManager connectionManager;
     private StandardDnsResolverPool dnsResolver = StandardDnsResolverPool.dnsResolver;
 
     public HttpProxyRequestPublisher(ProxyCoreComponent parent) {
@@ -83,6 +87,8 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
 
         this.serverSocketChannel = Platform.serverSocketChannelClass();
         this.eventLoopGroup = Platform.createEventLoopGroup(3);
+
+        this.connectionManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
 
         super.initInternal();
     }
@@ -189,7 +195,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
                             );
                             ctx.writeAndFlush(response).addListener((ChannelFutureListener) channelFuture -> {
                                 if (channelFuture.isSuccess()) {
-                                    ctx.pipeline().addLast(new TunnelProxyHandler(pr));
+                                    ctx.pipeline().addLast(new TunnelProxyHandler(pr, connectionManager));
                                 }
                             });
                         } else {
@@ -227,7 +233,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
                             hostInfo.getValue(), hostInfo.getKey(), ip, ctx.channel());
                     HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
-                    ctx.pipeline().addLast(new PlaintextProxyHandler(pr, request));
+                    ctx.pipeline().addLast(new PlaintextProxyHandler(pr, request, connectionManager));
                 } else {
                     logger.error("Proxy host[{}] name format is incorrect.", hostInfo.getKey());
                     HttpResponse response = new DefaultFullHttpResponse(
@@ -336,13 +342,23 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
      */
     private class TunnelProxyHandler extends ChannelInboundHandlerAdapter {
         private final ProxyRequest proxyRequest;
+        private final ConnectionManager connectionManager;
 
-        public TunnelProxyHandler(ProxyRequest proxyRequest) {
+        public TunnelProxyHandler(ProxyRequest proxyRequest, ConnectionManager connectionManager) {
             this.proxyRequest = proxyRequest;
+            this.connectionManager = connectionManager;
         }
 
         @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            Connection connection = connectionManager.getConnection(proxyRequest.getSerialId().toString());
+            if (connection != null) {
+                connection.close();
+            }
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
             if (msg instanceof ByteBuf) {
                 ByteBuf byteBuf = (ByteBuf) msg;
                 try {
@@ -362,6 +378,15 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             ctx.pipeline().remove(HttpRequestDecoder.class);
             ctx.pipeline().remove(HttpRequestHandler.class);
         }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            logger.error("Http(s) client channel encountered an error[{}].", cause.getMessage(), cause);
+            Connection connection = connectionManager.getConnection(proxyRequest.getSerialId().toString());
+            if (connection != null) {
+                connection.close();
+            }
+        }
     }
 
     /**
@@ -369,6 +394,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
      */
     private class PlaintextProxyHandler extends ChannelInboundHandlerAdapter {
         private final ProxyRequest proxyRequest;
+        private final ConnectionManager connectionManager;
         private final EmbeddedChannel writeEncoder = new EmbeddedChannel(new HttpRequestEncoder() {
             @Override
             protected boolean isContentAlwaysEmpty(HttpRequest msg) {
@@ -376,8 +402,10 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             }
         });
 
-        public PlaintextProxyHandler(ProxyRequest proxyRequest, HttpRequest firstRequest) {
+        public PlaintextProxyHandler(ProxyRequest proxyRequest, HttpRequest firstRequest,
+                ConnectionManager connectionManager) {
             this.proxyRequest = proxyRequest;
+            this.connectionManager = connectionManager;
 
             writeEncoder.writeOutbound(firstRequest);
             ByteBuf result = writeEncoder.readOutbound();
@@ -386,6 +414,14 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
                 proxyRequest.transferMessage(result.retain());
             } finally {
                 ReferenceCountUtil.release(result);
+            }
+        }
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) {
+            Connection connection = connectionManager.getConnection(proxyRequest.getSerialId().toString());
+            if (connection != null) {
+                connection.close();
             }
         }
 
@@ -428,6 +464,15 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             // 从代理服务器返回的就是http报文，不需要在此encode，但是需要decode从客户端传过来的request
             ctx.pipeline().remove(HttpResponseEncoder.class);
             ctx.pipeline().remove(HttpRequestHandler.class);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            logger.error("Http(s) client channel encountered an error[{}].", cause.getMessage(), cause);
+            Connection connection = connectionManager.getConnection(proxyRequest.getSerialId().toString());
+            if (connection != null) {
+                connection.close();
+            }
         }
     }
 
