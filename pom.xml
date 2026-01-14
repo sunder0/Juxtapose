@@ -7,7 +7,7 @@
     <groupId>com.sunder.juxtapose</groupId>
     <artifactId>juxtapose-all</artifactId>
     <packaging>pom</packaging>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.1-beta</version>
     <name>juxtapose-all</name>
 
     <modules>
