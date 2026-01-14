@@ -64,7 +64,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
     private CachedChannelPool cachedChannelPool;
 
     public HttpProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
-                                      ProxyServerNodeManager parent) {
+            ProxyServerNodeManager parent) {
         super(cfg.name, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         this.cfg = cfg;
         this.certComponent = certComponent;
@@ -127,7 +127,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                 public void accept(Channel channel) {
                     connection.bindProxyChannel((SocketChannel) channel);
 
-                    //如果是获取的空闲连接，那么需要更改handler所绑定的connection
+                    // 如果是获取的空闲连接，那么需要更改handler所绑定的connection
                     HttpTunnelMessageHandler handler = channel.pipeline().get(HttpTunnelMessageHandler.class);
                     if (!handler.getConnectionId().equals(connection.getConnectId())) {
                         handler.changeConnection(connection);
@@ -156,8 +156,8 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                 handler.writePendingWrites(channel, message);
             } else {
                 message.release();
-                cachedChannelPool.release(channel);
-                connection.closeForce();
+                logger.info("Proxy connection has been forcefully closed, and the received client message has been "
+                        + "discarded...");
             }
         }
 
@@ -174,7 +174,8 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
      */
     private class HttpCachedChannelPool extends CachedChannelPool {
 
-        public HttpCachedChannelPool(Bootstrap bootstrap, int corePoolSize, long maxIdleTime, long connectionTimeoutMs) {
+        public HttpCachedChannelPool(Bootstrap bootstrap, int corePoolSize, long maxIdleTime,
+                long connectionTimeoutMs) {
             super(bootstrap, corePoolSize, maxIdleTime, connectionTimeoutMs);
         }
 
@@ -220,8 +221,8 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                 HttpResponse response = (HttpResponse) msg;
                 if (response.status() == HttpResponseStatus.UNAUTHORIZED) {
                     logger.error("Http proxy server auth fail.");
-                    connection.close();
-                    cachedChannelPool.release(ctx.channel());
+                    connection.closeForce().addListener(
+                            (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
                 }
 
                 if (response.status() == HttpResponseStatus.OK) {
@@ -242,11 +243,8 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error("Http(s) proxy channel encountered an error[{}].", cause.getMessage(), cause);
-            connection.close();
-            cachedChannelPool.release(ctx.channel());
-            ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                logger.info("Http(s) channel close[{}]...", ctx.channel().id());
-            });
+            connection.closeForce().addListener(
+                    (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
         }
 
         /**
@@ -282,6 +280,8 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
             logger.error("Http(s) proxy channel close an error[{}].", ctx.channel().id());
+            connection.closeForce().addListener(
+                    (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
         }
 
         @Override
@@ -290,9 +290,10 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                 logger.debug("receive proxy server message...[{}]", connection.getConnectId());
                 connection.readMessage(msg);
 
-                //如果读取的时候proxy request已关闭，那么这个channel可以回收复用
+                // 如果读取的时候proxy request已关闭，那么这个channel可以回收复用
                 if (!connection.getProxyRequest().isActive()) {
                     cachedChannelPool.release(ctx.channel());
+                    // todo：通知关闭代理服务端对应连接
                 }
             } else {
                 ctx.fireChannelRead(ctx);
@@ -365,11 +366,8 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error("Http(s) proxy channel encountered an error[{}].", cause.getMessage(), cause);
-            connection.close();
-            cachedChannelPool.release(ctx.channel());
-            ctx.channel().close().addListener((ChannelFutureListener) channelFuture -> {
-                logger.info("Http(s) channel close[{}]...", ctx.channel().id());
-            });
+            connection.closeForce().addListener(
+                    (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
         }
     }
 

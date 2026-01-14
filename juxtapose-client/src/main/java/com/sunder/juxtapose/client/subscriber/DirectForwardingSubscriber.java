@@ -3,6 +3,7 @@ package com.sunder.juxtapose.client.subscriber;
 import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.common.BaseComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.connection.Connection;
 import com.sunder.juxtapose.common.connection.ConnectionManager;
@@ -15,9 +16,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 
 import java.util.Objects;
@@ -38,8 +37,8 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
     public DirectForwardingSubscriber(int serialNumber, ProxyServerNodeManager parent) {
         super(NAME + "_" + serialNumber, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(new NioEventLoopGroup(4))
-                .channel(NioSocketChannel.class)
+        bootstrap.group(Platform.createEventLoopGroup(4))
+                .channel(Platform.socketChannelClass())
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.AUTO_CLOSE, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5 * 1000);
@@ -100,6 +99,11 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
         }
 
         @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            connection.closeForce();
+        }
+
+        @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ByteBuf) {
                 connection.readMessage(msg);
@@ -111,7 +115,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error("Direct proxy channel encountered an error[{}].", cause.getMessage(), cause);
-            connection.close();
+            connection.closeForce();
         }
     }
 

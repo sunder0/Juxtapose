@@ -166,8 +166,8 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
             if (counter == null) {
                 continue;
             }
-            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + counter.lastWriteThroughput());
-            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + counter.lastReadThroughput());
+            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + counter.lastWrittenBytes());
+            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + counter.lastReadBytes());
         }
 
         // 发布统计信息（用于UI显示）

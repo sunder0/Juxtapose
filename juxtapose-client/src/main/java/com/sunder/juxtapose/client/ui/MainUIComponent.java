@@ -18,10 +18,9 @@ import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.LogModule;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
-import javafx.animation.Animation;
-import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.embed.swing.JFXPanel;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -43,7 +42,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
-import javafx.util.Duration;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -76,8 +74,11 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
         // 监听上下行流量，更新至UI
         connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
         connManager.addConnectionStatsListener(totalStats -> {
-            cac.setUploadBytes(totalStats.getBytesUploaded());
-            cac.setDownloadBytes(totalStats.getBytesDownloaded());
+            if (rateDisplay == null) {
+                return;
+            }
+            Platform.runLater(
+                    () -> rateDisplay.updateRates(totalStats.getBytesUploaded(), totalStats.getBytesDownloaded()));
         });
     }
 
@@ -173,9 +174,6 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             });
 
             primaryStage.show();
-
-            // 启动速率更新定时器
-            startRateUpdater();
         }
 
         @Override
@@ -183,25 +181,6 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             // 停止定时器
             if (timeline != null) {
                 timeline.stop();
-            }
-        }
-
-        // 启动速率更新定时器
-        private void startRateUpdater() {
-            timeline = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
-                updateRates();
-            }));
-            timeline.setCycleCount(Animation.INDEFINITE);
-            timeline.play();
-        }
-
-        // 更新上传下载速率
-        private void updateRates() {
-            double uploadRate = (double) cac.getUploadBytes();
-            double downloadRate = (double) cac.getDownloadBytes();
-
-            if (rateDisplay != null) {
-                rateDisplay.updateRates(uploadRate, downloadRate);
             }
         }
 

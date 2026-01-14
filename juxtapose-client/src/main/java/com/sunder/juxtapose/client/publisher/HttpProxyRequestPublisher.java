@@ -99,8 +99,8 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(eventLoopGroup)
                     .channel(serverSocketChannel)
-                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
-                    .option(ChannelOption.SO_KEEPALIVE, true);
+                    .childOption(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
+                    .childOption(ChannelOption.SO_KEEPALIVE, true);
             boot.childHandler(new ChannelInitializer<SocketChannel>() {
                 @Override
                 protected void initChannel(SocketChannel channel) {

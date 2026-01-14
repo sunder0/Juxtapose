@@ -43,6 +43,7 @@ import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 import io.netty.util.ReferenceCountUtil;
 
 import java.util.Deque;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
@@ -155,8 +156,8 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                 handler.writePendingWrites(channel, proxyMessage);
             } else {
                 message.release();
-                fixedChannelPool.release(channel);
-                connection.closeForce();
+                logger.info("Proxy connection has been forcefully closed, and the received client message has been "
+                        + "discarded...");
             }
         }
     }
@@ -224,6 +225,11 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
             logger.error("Juxta proxy channel close an error[{}].", ctx.channel().id());
+            List<Connection> connections = connManager.getConnectionsByProxyChannel(ctx.channel());
+            for (Connection connection : connections) {
+                connection.close();
+            }
+            fixedChannelPool.release(ctx.channel());
         }
 
         @Override
