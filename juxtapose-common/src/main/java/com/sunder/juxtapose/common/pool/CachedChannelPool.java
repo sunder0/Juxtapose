@@ -12,32 +12,27 @@ import io.netty.channel.VoidChannelPromise;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author : denglh
  * @date : 12:51 2026/1/1
- *
- * 整体类似CachedThreadPool，优先从空闲队列获取连接（LIFO策略，最近使用的连接更可能保持热度）,只有当没有空闲连接时才创建新连接
+ *         <p>
+ *         整体类似CachedThreadPool，优先从空闲队列获取连接（LIFO策略，最近使用的连接更可能保持热度）,只有当没有空闲连接时才创建新连接
  */
 public abstract class CachedChannelPool implements ChannelPool {
-    // 核心连接数（空闲时保留的最小连接数）
-    private final int corePoolSize;
-    // 最大连接保持数
+    // 最大连接保持数, 默认Integer.MAX_VALUE， 理论上达不到，因为需要保证一个connection对应一个channel
     protected final int maximumPoolSize;
     // 最大空闲时间（毫秒），超过此时间的空闲连接会被回收
-    private final long maxIdleTime;
-    // 连接创建超时时间
-    private final long connectionTimeoutMs;
+    protected final long maxIdleTime;
 
     protected final Logger logger;
     protected final Bootstrap bootstrap;
@@ -45,6 +40,8 @@ public abstract class CachedChannelPool implements ChannelPool {
 
     // 活跃连接数（正在使用的连接）
     private final AtomicInteger activeCount = new AtomicInteger(0);
+    // 空闲连接数
+    private final AtomicInteger idleCount = new AtomicInteger(0);
     // 总连接数（活跃 + 空闲）
     private final AtomicInteger totalCount = new AtomicInteger(0);
 
@@ -57,73 +54,22 @@ public abstract class CachedChannelPool implements ChannelPool {
     private ScheduledExecutorService idleCleaner;
     // 是否已关闭
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
-    // 锁，用于创建连接时的同步
-    private final ReentrantLock createLock = new ReentrantLock();
-
-    // 如果连接数达到理论最大值，将请求加入等待队列
-    private final LinkedBlockingQueue<ConnectionRequest> pendingRequests = new LinkedBlockingQueue<>();
-
-    /**
-     * 连接请求封装类
-     */
-    private static class ConnectionRequest {
-        final CompletableFuture<Channel> future;
-        final ProxyRequest request;
-        final Connection connection;
-
-        ConnectionRequest(CompletableFuture<Channel> future, ProxyRequest request, Connection connection) {
-            this.future = future;
-            this.request = request;
-            this.connection = connection;
-        }
-    }
-
-    /**
-     * 空闲连接封装类
-     */
-    private static class IdleChannel {
-        final Channel channel;
-        final long idleSince; // 空闲开始时间
-
-        IdleChannel(Channel channel) {
-            this.channel = channel;
-            this.idleSince = System.currentTimeMillis();
-        }
-
-        boolean isExpired(long maxIdleTime) {
-            return maxIdleTime > 0 &&
-                    (System.currentTimeMillis() - idleSince) > maxIdleTime;
-        }
-    }
-
 
     public CachedChannelPool(Bootstrap bootstrap) {
-        this(bootstrap, 10, 30000, 5000);
+        this(bootstrap, 60_000L);
     }
 
     /**
      * 完整构造函数
      *
-     * @param bootstrap           引导类
-     * @param corePoolSize        核心连接数（空闲时保留的最小连接数）
-     * @param maxIdleTime         最大空闲时间(ms)，-1表示永久保持
-     * @param connectionTimeoutMs 连接创建超时时间(ms)
+     * @param bootstrap 引导类
+     * @param maxIdleTime 最大空闲时间(ms)，-1表示永久保持
      */
-    public CachedChannelPool(Bootstrap bootstrap, int corePoolSize,
-                             long maxIdleTime, long connectionTimeoutMs) {
-        if (corePoolSize <= 0) {
-            throw new IllegalArgumentException("corePoolSize must be positive");
-        }
-        if (connectionTimeoutMs <= 0) {
-            throw new IllegalArgumentException("connectionTimeoutMs must be positive");
-        }
-
+    public CachedChannelPool(Bootstrap bootstrap, long maxIdleTime) {
         this.bootstrap = bootstrap.clone();
         this.group = bootstrap.config().group();
-        this.corePoolSize = corePoolSize;
         this.maximumPoolSize = Integer.MAX_VALUE;
         this.maxIdleTime = maxIdleTime;
-        this.connectionTimeoutMs = connectionTimeoutMs;
         this.logger = LoggerFactory.getLogger(CachedChannelPool.class);
 
         // 启动空闲连接清理任务
@@ -141,7 +87,8 @@ public abstract class CachedChannelPool implements ChannelPool {
             // 每5秒检查一次空闲连接
             idleCleaner.scheduleAtFixedRate(() -> {
                 try {
-                    System.out.println("total: " + totalCount.get() + ", idle: " + idleQueue.size() + ", activity:" + activeChannels.size());
+                    System.out.println("total: " + totalCount.get() + ", idle: " + idleCount.get() + ", activity:"
+                            + activeCount.get());
                     cleanIdleChannels();
                 } catch (Exception ex) {
                     logger.error("Error cleaning idle channels", ex);
@@ -158,22 +105,19 @@ public abstract class CachedChannelPool implements ChannelPool {
             return;
         }
 
-        int idleSize = idleQueue.size();
-        int targetSize = Math.max(corePoolSize, activeCount.get() * 2); // 保留一些缓冲
-
-        // 如果空闲连接过多，清理掉一些, 优先清理前面的，前面的连接时间更长
-        while (idleSize > targetSize && !idleQueue.isEmpty()) {
-            IdleChannel idleChannel = idleQueue.pollFirst();
-            if (idleChannel != null) {
-                // 清理过期连接
-                if (idleChannel.isExpired(maxIdleTime)) {
-                    closeChannelQuietly(idleChannel.channel);
-                    totalCount.decrementAndGet();
-                    idleSize--;
-                } else {
-                    // 放回队列末尾， 后面的连接时间更短
-                    idleQueue.offerLast(idleChannel);
-                    break;
+        long inActive = idleQueue.stream().filter(c -> !c.channel.isActive()).count();
+        if (inActive > idleQueue.size() / 3) {
+            // 优先清理前面的，前面的连接时间更长
+            while (!idleQueue.isEmpty()) {
+                IdleChannel idleChannel = idleQueue.pollFirst();
+                if (idleChannel != null) {
+                    if (idleChannel.isExpired(maxIdleTime)) {
+                        closeChannelQuietly(idleChannel.channel);
+                        totalCount.decrementAndGet();
+                        idleCount.decrementAndGet();
+                    } else {
+                        idleQueue.offerLast(idleChannel);
+                    }
                 }
             }
         }
@@ -201,7 +145,7 @@ public abstract class CachedChannelPool implements ChannelPool {
      * 执行获取连接逻辑
      */
     private void doAcquire(CompletableFuture<Channel> future,
-                           ProxyRequest request, Connection connection) {
+            ProxyRequest request, Connection connection) {
         // 1. 首先尝试从空闲队列获取
         Channel idleChannel = tryAcquireIdleChannel();
         if (idleChannel != null) {
@@ -216,9 +160,7 @@ public abstract class CachedChannelPool implements ChannelPool {
         if (totalCount.get() < maximumPoolSize) {
             createNewChannelAsync(future, request, connection);
         } else {
-            // 如果连接数达到理论最大值，将请求加入等待队列
-            pendingRequests.offer(new CachedChannelPool.ConnectionRequest(future, request, connection));
-            processPendingRequests();
+            throw new RuntimeException("The maximum number of channels that can be created has been exceeded!");
         }
     }
 
@@ -231,11 +173,11 @@ public abstract class CachedChannelPool implements ChannelPool {
             Channel channel = idleChannel.channel;
 
             // 检查连接是否有效
+            idleCount.decrementAndGet();
             if (isChannelValid(channel)) {
                 return channel;
             } else {
                 // 移除无效连接
-                closeChannelQuietly(channel);
                 totalCount.decrementAndGet();
             }
         }
@@ -246,66 +188,29 @@ public abstract class CachedChannelPool implements ChannelPool {
      * 异步创建新连接
      */
     private void createNewChannelAsync(CompletableFuture<Channel> future,
-                                       ProxyRequest request, Connection connection) {
-        try {
-            createLock.lock();
-
-            // 再次检查，避免重复创建
-            Channel idleChannel = tryAcquireIdleChannel();
-            if (idleChannel != null) {
-                activeCount.incrementAndGet();
-                activeChannels.put(idleChannel, System.currentTimeMillis());
-                future.complete(idleChannel);
-                return;
-            }
-
-            // 创建新连接
-            ChannelFuture channelFuture = createNewChannel0(request, connection);
-
-            // // 设置超时
-            // ScheduledFuture<?> timeoutFuture = group.next().schedule(() -> {
-            //     if (!future.isDone()) {
-            //         future.completeExceptionally(new TimeoutException(
-            //                 "Connection creation timeout after " + connectionTimeoutMs + "ms"));
-            //     }
-            // }, connectionTimeoutMs, TimeUnit.MILLISECONDS);
-
-            channelFuture.addListener((ChannelFutureListener) cf -> {
-               // timeoutFuture.cancel(false); // 取消超时任务
-
-                if (cf.isSuccess()) {
-                    Channel channel = cf.channel();
-                    totalCount.incrementAndGet();
-                    activeCount.incrementAndGet();
-                    activeChannels.put(channel, System.currentTimeMillis());
-                    future.complete(channel);
-                } else if (!future.isDone()) {
-                    future.completeExceptionally(cf.cause());
-                    // 创建失败，尝试处理等待队列中的请求
-                    processPendingRequests();
-                }
-            });
-        } finally {
-            createLock.unlock();
-        }
-    }
-
-    /**
-     * 处理等待队列中的连接请求
-     */
-    private void processPendingRequests() {
-        if (pendingRequests.isEmpty()) {
+            ProxyRequest request, Connection connection) {
+        // 再次检查，避免重复创建
+        Channel idleChannel = tryAcquireIdleChannel();
+        if (idleChannel != null) {
+            activeCount.incrementAndGet();
+            activeChannels.put(idleChannel, System.currentTimeMillis());
+            future.complete(idleChannel);
             return;
         }
 
-        group.next().execute(() -> {
-            while (!pendingRequests.isEmpty()) {
-                ConnectionRequest req = pendingRequests.poll();
-                if (req != null) {
-                    doAcquire(req.future, req.request, req.connection);
-                }
+        // 创建新连接
+        createNewChannel0(request, connection).addListener((ChannelFutureListener) cf -> {
+            if (cf.isSuccess()) {
+                Channel channel = cf.channel();
+                totalCount.incrementAndGet();
+                activeCount.incrementAndGet();
+                activeChannels.put(channel, System.currentTimeMillis());
+                future.complete(channel);
+            } else if (!future.isDone()) {
+                future.completeExceptionally(cf.cause());
             }
         });
+
     }
 
     @Override
@@ -315,22 +220,24 @@ public abstract class CachedChannelPool implements ChannelPool {
         }
 
         // 从活跃集合中移除
-        activeChannels.remove(channel);
-        activeCount.decrementAndGet();
+        if (activeChannels.remove(channel) != null) {
+            activeCount.decrementAndGet();
+        }
 
+        IdleChannel idleChannel = new IdleChannel(channel);
         // 检查连接是否仍然有效
         if (!isChannelValid(channel)) {
-            closeChannelQuietly(channel);
             totalCount.decrementAndGet();
-            processPendingRequests(); // 尝试处理等待的请求
+            if (idleQueue.remove(idleChannel)) {
+                idleCount.decrementAndGet();
+            }
             return channel.close();
         }
 
         // 将有效连接放入空闲队列
-        idleQueue.offerLast(new IdleChannel(channel));
-
-        // 处理等待队列中的请求
-        processPendingRequests();
+        if (!idleQueue.contains(idleChannel) && idleQueue.offerLast(idleChannel)) {
+            idleCount.incrementAndGet();
+        }
 
         return new VoidChannelPromise(channel, true);
     }
@@ -339,14 +246,14 @@ public abstract class CachedChannelPool implements ChannelPool {
      * 检查连接是否有效
      */
     private boolean isChannelValid(Channel channel) {
-        return channel != null && channel.isActive() && channel.isOpen();
+        return channel != null && channel.isActive();
     }
 
     /**
      * 安静地关闭连接（不抛出异常）
      */
     private void closeChannelQuietly(Channel channel) {
-        if (channel != null && channel.isOpen()) {
+        if (channel != null && channel.isActive()) {
             try {
                 channel.close().awaitUninterruptibly(1000);
             } catch (Exception ex) {
@@ -383,46 +290,51 @@ public abstract class CachedChannelPool implements ChannelPool {
         }
         activeChannels.clear();
 
-        // 清空等待队列
-        pendingRequests.clear();
-
         // 重置计数器
         activeCount.set(0);
         totalCount.set(0);
-    }
-
-    /**
-     * 强制回收所有空闲连接（用于内存紧张等情况）
-     */
-    public void evictIdleChannels() {
-        if (shutdown.get()) {
-            return;
-        }
-
-        int initialIdleSize = idleQueue.size();
-        int targetSize = Math.max(corePoolSize / 2, activeCount.get()); // 保留少量缓冲
-
-        while (idleQueue.size() > targetSize) {
-            IdleChannel idleChannel = idleQueue.pollFirst();
-            if (idleChannel != null) {
-                closeChannelQuietly(idleChannel.channel);
-                totalCount.decrementAndGet();
-            } else {
-                break;
-            }
-        }
-
-        logger.info("Evicted " + (initialIdleSize - idleQueue.size()) + " idle channels");
     }
 
 
     /**
      * 创建一个新的连接
      *
-     * @param request    代理请求
+     * @param request 代理请求
      * @param connection 逻辑连接
      * @return channelFuture
      */
     protected abstract ChannelFuture createNewChannel0(ProxyRequest request, Connection connection);
+
+    /**
+     * 空闲连接封装类
+     */
+    private static class IdleChannel {
+        final Channel channel;
+        final long idleSince; // 空闲开始时间
+
+        IdleChannel(Channel channel) {
+            this.channel = channel;
+            this.idleSince = System.currentTimeMillis();
+        }
+
+        boolean isExpired(long maxIdleTime) {
+            return maxIdleTime > 0 &&
+                    (System.currentTimeMillis() - idleSince) > maxIdleTime;
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            if (object == null || getClass() != object.getClass()) {
+                return false;
+            }
+            IdleChannel that = (IdleChannel) object;
+            return Objects.equals(channel, that.channel);
+        }
+
+        @Override
+        public int hashCode() {
+            return channel.id().hashCode();
+        }
+    }
 
 }

@@ -211,6 +211,9 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 logger.info("connect http[{}] request auth passed.", request.uri());
             }
 
+            //todo: 级联关闭
+            String serialId = request.headers().get(HttpHeaderNames.CONNECTION);
+
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
             HttpResponse response = new DefaultFullHttpResponse(
                     request.protocolVersion(), HttpResponseStatus.OK

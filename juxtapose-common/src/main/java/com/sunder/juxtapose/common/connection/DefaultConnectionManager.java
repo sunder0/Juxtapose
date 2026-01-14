@@ -98,13 +98,16 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
 
     @Override
     public List<Connection> getConnectionsByClientChannel(Channel clientChannel) {
-        return connectionMap.values().stream().filter(c -> c.getProxyRequest().getClientChannel().equals(clientChannel))
+        return connectionMap.values().stream()
+                .filter(c -> c.getProxyChannel() != null && c.getProxyRequest().getClientChannel()
+                        .equals(clientChannel))
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<Connection> getConnectionsByProxyChannel(Channel proxyChannel) {
-        return connectionMap.values().stream().filter(c -> c.getProxyChannel().equals(proxyChannel))
+        return connectionMap.values().stream()
+                .filter(c -> c.getProxyChannel() != null && c.getProxyChannel().equals(proxyChannel))
                 .collect(Collectors.toList());
     }
 

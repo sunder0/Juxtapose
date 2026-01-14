@@ -55,6 +55,11 @@ public interface ProxyMessageTransfer {
         @Override
         public void transferMessage(ByteBuf message) {
             if (receiver == null) {
+                // 关闭clientChanel前可能还有消息发送过来
+                if (cacheQueue == null) {
+                    message.release();
+                    return;
+                }
                 cacheQueue.offer(message);
                 return;
             }
