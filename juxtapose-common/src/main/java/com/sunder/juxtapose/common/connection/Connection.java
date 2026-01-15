@@ -3,6 +3,7 @@ package com.sunder.juxtapose.common.connection;
 
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.utils.ProxyCmdClient;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.SocketChannel;
@@ -68,6 +69,13 @@ public interface Connection {
      * @param channel io.netty.channel.socket.SocketChannel
      */
     void bindProxyChannel(SocketChannel channel);
+
+    /**
+     * 绑定cmdClient, 与对端交互的命令端
+     *
+     * @param cmdClient com.sunder.juxtapose.common.utils.ProxyCmdClient
+     */
+    void bindProxyCmdClient(ProxyCmdClient cmdClient);
 
     /**
      * 绑定流量统计工具

@@ -4,6 +4,7 @@ import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.mesage.ProxyCloseMessage;
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
+import com.sunder.juxtapose.common.utils.ProxyCmdClient;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -36,6 +37,7 @@ public class ProxyConnection implements Connection {
     protected volatile ConnectionState state;
     protected ProxyRequest proxyRequest; // 包含代理请求信息和连接用户端的channel
     protected SocketChannel proxyChannel; // 连接代理服务器channel
+    protected ProxyCmdClient cmdClient;
     private ConnectionContent connectionContent; // 连接内容信息
     private ConnectionStats connectionStats; // 连接统计信息
     private TrafficCounter trafficCounter; // 流量统计
@@ -83,6 +85,11 @@ public class ProxyConnection implements Connection {
         } finally {
             lock.unlock();
         }
+    }
+
+    @Override
+    public void bindProxyCmdClient(ProxyCmdClient cmdClient) {
+        this.cmdClient = cmdClient;
     }
 
     @Override
@@ -163,6 +170,9 @@ public class ProxyConnection implements Connection {
                     }
                     if (protocol == ProxyProtocol.DIRECT) {
                         proxyChannel.close();
+                    }
+                    if (protocol == ProxyProtocol.HTTP && cmdClient != null) {
+                        cmdClient.closeConnection(connectId);
                     }
                 }
                 return proxyRequest.close().addListener(

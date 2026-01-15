@@ -11,6 +11,7 @@
 			<includes>
 				<include>bin/**</include>
                 <include>conf/server.properties</include>
+                <include>conf/spring.properties</include>
                 <include>conf/cert/**</include>
                 <include>conf/logback.xml</include>
                 <include>lib/**</include>

@@ -16,6 +16,7 @@ import com.sunder.juxtapose.common.pool.CachedChannelPool;
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
+import com.sunder.juxtapose.common.utils.ProxyCmdClient;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -129,6 +130,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                     connection.bindTrafficCounter(trafficHandler.trafficCounter());
 
                     connection.bindProxyChannel((SocketChannel) cf.channel());
+                    connection.bindProxyCmdClient(new ProxyCmdClient(cfg.server, 2203));
 
                     logger.info("Connect Http proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
                 } else {

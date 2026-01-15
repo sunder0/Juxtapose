@@ -45,6 +45,7 @@ public final class ProxyCoreComponent extends BaseCompositeComponent<StandardSer
             //todo
         }
 
+        addChildComponent(new ProxyWebComponent(this));
         addChildComponent(certComponent = new CertComponent(this));
         addChildComponent(dispatcher = new TcpProxyDispatchComponent(this));
 
