@@ -152,43 +152,35 @@ public class ProxyConnection implements Connection {
 
     @Override
     public ChannelFuture close() {
-        try {
-            lock.lock();
-            if (state != ConnectionState.CLOSED) {
-                changeState(ConnectionState.CLOSED);
-                // 通知对端对应的连接关闭
-                if (proxyChannel != null && proxyChannel.isActive()) {
-                    if (protocol == ProxyProtocol.JUXTA) {
-                        proxyChannel.writeAndFlush(new ProxyCloseMessage(connectId));
-                    }
-                    if (protocol == ProxyProtocol.DIRECT) {
-                        proxyChannel.close();
-                    }
+        if (state != ConnectionState.CLOSED) {
+            changeState(ConnectionState.CLOSED);
+            // 通知对端对应的连接关闭
+            if (proxyChannel != null && proxyChannel.isActive()) {
+                if (protocol == ProxyProtocol.JUXTA) {
+                    proxyChannel.writeAndFlush(new ProxyCloseMessage(connectId));
                 }
-                return proxyRequest.close().addListener(
-                        f -> logger.info("Close connection[{}] success.", connectId));
+                if (protocol == ProxyProtocol.DIRECT) {
+                    proxyChannel.close();
+                }
             }
-        } finally {
-            lock.unlock();
+            return proxyRequest.close().addListener(
+                    f -> logger.info("Close connection[{}] success.", connectId));
         }
+
         return null;
     }
 
     @Override
     public ChannelFuture closeForce() {
-        try {
-            lock.lock();
-            if (state != ConnectionState.CLOSED) {
-                changeState(ConnectionState.CLOSED);
-                proxyRequest.close();
-                if (proxyChannel != null && proxyChannel.isActive()) {
-                    return proxyChannel.close().addListener(f ->
-                            logger.info("Close connection[{}] success.", connectId));
-                }
+        if (state != ConnectionState.CLOSED) {
+            changeState(ConnectionState.CLOSED);
+            proxyRequest.close();
+            if (proxyChannel != null && proxyChannel.isActive()) {
+                return proxyChannel.close().addListener(f ->
+                        logger.info("Close connection[{}] success.", connectId));
             }
-        } finally {
-            lock.unlock();
         }
+
         return null;
     }
 

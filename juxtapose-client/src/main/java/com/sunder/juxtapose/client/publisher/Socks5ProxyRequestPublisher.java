@@ -92,8 +92,12 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(eventLoopGroup)
                     .channel(serverSocketChannel)
+                    .option(ChannelOption.SO_REUSEADDR, true)           // 启用地址重用, 允许绑定到相同的 IP 地址和端口组合
+                    .childOption(ChannelOption.SO_REUSEADDR, true)
+                    .childOption(ChannelOption.SO_LINGER, 0)            // 快速关闭客户端连接
                     .childOption(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
+                    .childOption(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {

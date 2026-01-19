@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  * @author : sunder
  * @date : 15:22 2025/09/11
  */
-public class StandardDnsResolverPool implements AutoCloseable{
+public class StandardDnsResolverPool implements AutoCloseable {
     public final static StandardDnsResolverPool dnsResolver = new StandardDnsResolverPool(3);
 
     private final DnsNameResolver resolvers;
@@ -87,7 +87,7 @@ public class StandardDnsResolverPool implements AutoCloseable{
                         )
                 )
                 // 缓存配置, 最大缓存时间1天, 最小缓存时间1分钟,  失败后再次查询缓存时间3秒（3s内一直失败）
-                .resolveCache(new DefaultDnsCache(60, 86400, 3))
+                .resolveCache(new DefaultDnsCache(3600, 86400, 3))
                 .build();
     }
 

@@ -60,19 +60,15 @@ public class UpstreamConnection extends ProxyConnection {
 
     @Override
     public ChannelFuture close() {
-        try {
-            lock.lock();
-            if (state != ConnectionState.CLOSED) {
-                changeState(ConnectionState.CLOSED);
-                if (proxyChannel != null && proxyChannel.isActive()) {
-                    proxyChannel.attr(CONNECT_KEY).set(null);
-                    return proxyChannel.close().addListener(f ->
-                            logger.info("Close connection[{}] success.", connectId));
-                }
+        if (state != ConnectionState.CLOSED) {
+            changeState(ConnectionState.CLOSED);
+            if (proxyChannel != null && proxyChannel.isActive()) {
+                proxyChannel.attr(CONNECT_KEY).set(null);
+                return proxyChannel.close().addListener(f ->
+                        logger.info("Close connection[{}] success.", connectId));
             }
-        } finally {
-            lock.unlock();
         }
+
         return null;
     }
 
