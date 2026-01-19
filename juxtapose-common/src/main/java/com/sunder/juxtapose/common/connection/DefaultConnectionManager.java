@@ -144,14 +144,6 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
                 connection.close();
                 cleaned++;
             }
-
-            // 清理长时间未认证的连接
-            if (connection.getState() == ConnectionState.CONNECTED &&
-                    (now - stats.getLastActivityTime()) > TimeUnit.MINUTES.toMillis(1)) {
-                connection.close();
-                logger.warn("Connection[{}] authentication timeout, closing", connection.getConnectId());
-                cleaned++;
-            }
         }
 
         if (cleaned > 0) {

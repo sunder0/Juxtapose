@@ -21,6 +21,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -93,6 +94,8 @@ public class Socks5ProxyTaskPublisher extends BaseComponent<ProxyCoreComponent> 
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(bossGroup, workGroup)
                     .channel(serverSocketChannel)
+                    .childOption(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
+                    .childOption(ChannelOption.SO_KEEPALIVE, true)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
                         protected void initChannel(SocketChannel channel) {

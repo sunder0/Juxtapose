@@ -25,9 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -37,10 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComponent> {
     public final static String NAME = "PROXY_SERVER_NODE_MANAGER";
 
-    private final static int MAX_DIRECT_SUBSCRIBER_NODES = 3;
-
+    // 是否在更新中
     private final AtomicBoolean updProxy = new AtomicBoolean(false);
-    private final Queue<ProxyRequest> updCacheQueue = new ConcurrentLinkedQueue<>();
 
     private ProxyServerConfig proxyServerCfg;
     // 证书信息
@@ -72,9 +68,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         addChildComponent(certComponent = new CertComponent(this));
 
         // 添加代理订阅
-        for (int i = 0; i < MAX_DIRECT_SUBSCRIBER_NODES; i++) {
-            addChildComponent(new DirectForwardingSubscriber(i, this));
-        }
+        addChildComponent(new DirectForwardingSubscriber(0, this));
         loadProxySubscribers();
 
         ClientConfig ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);

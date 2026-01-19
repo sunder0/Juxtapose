@@ -36,11 +36,14 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
 
     public DirectForwardingSubscriber(int serialNumber, ProxyServerNodeManager parent) {
         super(NAME + "_" + serialNumber, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
+
+        int coreThreads = Runtime.getRuntime().availableProcessors();
+
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(Platform.createEventLoopGroup(4))
+        bootstrap.group(Platform.createEventLoopGroup(coreThreads * 2))
                 .channel(Platform.socketChannelClass())
+                .option(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
                 .option(ChannelOption.SO_KEEPALIVE, true)
-                .option(ChannelOption.AUTO_CLOSE, true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5 * 1000);
         this.bootstrap = bootstrap;
 
@@ -72,6 +75,8 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
         Connection connection;
         if ((connection = connManager.getConnection(serialId.toString())) != null) {
             connection.writeMessage(message);
+        } else {
+            message.release();
         }
     }
 

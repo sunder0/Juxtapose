@@ -100,6 +100,7 @@ public class JuxtaProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreCom
             boot.group(bossGroup, workGroup)
                     .channel(serverSocketChannel)
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
+                    .childOption(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
                     .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK,
                             new WriteBufferWaterMark(LOW_WATER_MARK, HIGH_WATER_MARK))
                     .childHandler(new ChannelInitializer<SocketChannel>() {

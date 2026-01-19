@@ -77,8 +77,10 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
     @Override
     protected void initInternal() {
+        int coreThreads = Runtime.getRuntime().availableProcessors();
+
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(Platform.createEventLoopGroup(8))
+        bootstrap.group(Platform.createEventLoopGroup(coreThreads * 2))
                 .channel(Platform.socketChannelClass())
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.SO_SNDBUF, 1024 * 1024)  // 1MB发送缓冲区
