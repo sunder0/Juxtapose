@@ -51,7 +51,8 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
         this.bootstrap = new Bootstrap().group(Platform.createEventLoopGroup(8))
                 .channel(Platform.socketChannelClass())
                 .option(ChannelOption.SO_KEEPALIVE, true)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000);
+                .option(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000);
         this.connManager = getModuleByName(UpstreamConnectionManager.NAME, true, UpstreamConnectionManager.class);
     }
 
