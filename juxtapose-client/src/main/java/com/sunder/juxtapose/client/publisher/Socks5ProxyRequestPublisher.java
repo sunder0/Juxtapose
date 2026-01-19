@@ -39,6 +39,7 @@ import io.netty.handler.codec.socks.SocksInitRequestDecoder;
 import io.netty.handler.codec.socks.SocksInitResponse;
 import io.netty.handler.codec.socks.SocksMessageEncoder;
 import io.netty.handler.codec.socks.SocksRequest;
+import io.netty.util.NetUtil;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -77,7 +78,9 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
         }
 
         this.serverSocketChannel = Platform.serverSocketChannelClass();
-        this.eventLoopGroup = Platform.createEventLoopGroup(3);
+
+        int coreThreads = Runtime.getRuntime().availableProcessors();
+        this.eventLoopGroup = Platform.createEventLoopGroup(coreThreads * 2);
         this.connectionManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
 
         super.initInternal();
@@ -89,6 +92,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(eventLoopGroup)
                     .channel(serverSocketChannel)
+                    .childOption(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
@@ -105,7 +109,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
                 } else {
                     logger.info("Socks5 server start success, address:[{}:{}].", host, port);
                 }
-            }).await();
+            });
         } catch (Exception ex) {
             throw new ComponentException(ex);
         }
@@ -185,23 +189,29 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
             logger.info("Socks command request to {}:{}", host, port);
             switch (request.addressType()) {
                 case DOMAIN: {
-                    dnsResolver.resolveAsync(host).addListener(f -> {
-                        if (f.isSuccess()) {
-                            InetAddress ip = (InetAddress) f.getNow();
-                            processCommandRequest(ctx, host, port, host, ip, request.addressType(), request.cmdType());
-                        } else {
-                            logger.error("Unknown Host[{}] error.", host, f.cause());
-                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.ADDRESS_NOT_SUPPORTED,
-                                    request.addressType())).addListener(ChannelFutureListener.CLOSE);
-                        }
-                    });
+                    try {
+                        InetAddress ip = dnsResolver.resolveSync(host);
+                        processCommandRequest(ctx, host, port, host, ip, request.addressType(), request.cmdType());
+                    } catch (Exception ex) {
+                        logger.error("Unknown Host[{}] error.", host, ex);
+                        ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.ADDRESS_NOT_SUPPORTED,
+                                request.addressType())).addListener(ChannelFutureListener.CLOSE);
+                    }
+
                 }
                 break;
 
                 case IPv4:
                 case IPv6: {
                     try {
-                        // 1. 验证ip是否合法 2.标准化处理, todo: getByName不能校验格式问题，不能校验是否是ip
+                        if (!(NetUtil.isValidIpV4Address(host) || NetUtil.isValidIpV6Address(host))) {
+                            logger.error("Non-IPv4 and IPv6 addresses[{}].", host);
+                            ctx.writeAndFlush(new SocksCmdResponse(SocksCmdStatus.ADDRESS_NOT_SUPPORTED,
+                                    request.addressType())).addListener(ChannelFutureListener.CLOSE);
+                            return;
+                        }
+
+                        // 标准化处理
                         InetAddress ip = InetAddress.getByName(host);
                         processCommandRequest(ctx, host, port, host, ip, request.addressType(), request.cmdType());
                     } catch (UnknownHostException ex) {
@@ -282,6 +292,7 @@ public class Socks5ProxyRequestPublisher extends BaseCompositeComponent<ProxyCor
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error(cause.getMessage(), cause);
+            ctx.close();
         }
     }
 

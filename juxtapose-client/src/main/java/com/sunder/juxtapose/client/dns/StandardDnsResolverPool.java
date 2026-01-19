@@ -12,49 +12,44 @@ import io.netty.util.concurrent.Future;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author : sunder
  * @date : 15:22 2025/09/11
  */
-public class StandardDnsResolverPool {
-    public final static StandardDnsResolverPool dnsResolver = new StandardDnsResolverPool(6);
+public class StandardDnsResolverPool implements AutoCloseable{
+    public final static StandardDnsResolverPool dnsResolver = new StandardDnsResolverPool(3);
 
-    private final DnsNameResolver[] resolvers;
-    private final AtomicInteger index = new AtomicInteger(0);
+    private final DnsNameResolver resolvers;
 
     private StandardDnsResolverPool(int threads) {
-        resolvers = new DnsNameResolver[threads];
-
         EventLoopGroup eventLoopGroup = Platform.createEventLoopGroup(threads,
                 ThreadFactoryBuilder.create().setNamePrefix("dns-resolver-").build());
-        for (int i = 0; i < threads; i++) {
-            resolvers[i] = createDnsNameResolver(eventLoopGroup.next());
-        }
+
+        resolvers = createDnsNameResolver(eventLoopGroup.next());
     }
 
     /**
      * 异步解析域名
      */
     public Future<InetAddress> resolveAsync(String hostname) {
-        return resolvers[index.getAndIncrement() % resolvers.length].resolve(hostname);
+        return resolvers.resolve(hostname);
     }
 
     /**
      * 同步解析
      */
     public InetAddress resolveSync(String hostname) throws Exception {
-        return resolvers[index.getAndIncrement() % resolvers.length].resolve(hostname).sync().getNow();
+        return resolvers.resolve(hostname).sync().get(1, TimeUnit.SECONDS);
     }
 
     /**
      * 关闭解析器
      */
+    @Override
     public void close() {
-        for (int i = 0; i < resolvers.length; i++) {
-            resolvers[i].close();
-        }
+        resolvers.close();
     }
 
     /**
@@ -70,7 +65,7 @@ public class StandardDnsResolverPool {
                 .maxQueriesPerResolve(50)  // 最大10次查询
                 .recursionDesired(true)    // 请求递归查询
                 // DNS协议特性
-                // 如果不启用 EDNS：// - 可能无法获得完整的 DNS 响应 - CDN 优化可能失效 - 安全性降低
+                // 如果不启用 EDNS可能无法获得完整的 DNS 响应
                 .optResourceEnabled(true)
                 /**
                  * // 假设搜索域配置为: "example.com", "local"
@@ -88,13 +83,11 @@ public class StandardDnsResolverPool {
                 // DNS服务器配置
                 .nameServerProvider(
                         new SequentialDnsServerAddressStreamProvider(
-                                new InetSocketAddress("8.8.8.8", 53),      // Google DNS
-                                new InetSocketAddress("1.1.1.1", 53),      // Cloudflare DNS
-                                new InetSocketAddress("208.67.222.222", 53) // OpenDNS
+                                new InetSocketAddress("119.29.29.29", 53) // 腾讯dns
                         )
                 )
-                // 缓存配置, 最大缓存时间1小时, 最小缓存时间1分钟,  失败后再次查询缓存时间10秒（10s内一直失败）
-                .resolveCache(new DefaultDnsCache(60, 3600, 10))
+                // 缓存配置, 最大缓存时间1天, 最小缓存时间1分钟,  失败后再次查询缓存时间3秒（3s内一直失败）
+                .resolveCache(new DefaultDnsCache(60, 86400, 3))
                 .build();
     }
 

@@ -99,6 +99,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             ServerBootstrap boot = new ServerBootstrap();
             boot.group(eventLoopGroup)
                     .channel(serverSocketChannel)
+                    .childOption(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
                     .childOption(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
                     .childOption(ChannelOption.SO_KEEPALIVE, true);
             boot.childHandler(new ChannelInitializer<SocketChannel>() {
@@ -182,32 +183,29 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
          */
         private void handleConnectMethod(ChannelHandlerContext ctx, HttpRequest request) throws Exception {
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
-            dnsResolver.resolveAsync(hostInfo.getKey()).addListener(f -> {
-                        if (f.isSuccess()) {
-                            InetAddress ip = (InetAddress) f.getNow();
-                            ProxyRequest pr = new ProxyRequest(hostInfo.getKey(),
-                                    hostInfo.getValue(), hostInfo.getKey(), ip, ctx.channel());
-                            HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
-                            // 注意: window proxy does not require a body
-                            HttpResponse response = new DefaultFullHttpResponse(
-                                    request.protocolVersion(), HttpResponseStatus.OK
-                            );
-                            ctx.writeAndFlush(response).addListener((ChannelFutureListener) channelFuture -> {
-                                if (channelFuture.isSuccess()) {
-                                    ctx.pipeline().addLast(new TunnelProxyHandler(pr, connectionManager));
-                                }
-                            });
-                        } else {
-                            logger.error("Proxy host[{}] name format is incorrect.", hostInfo.getKey());
-                            HttpResponse response = new DefaultFullHttpResponse(
-                                    request.protocolVersion(), HttpResponseStatus.BAD_REQUEST
-                            );
-                            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-                        }
+            try {
+                InetAddress ip = dnsResolver.resolveSync(host);
+                ProxyRequest pr = new ProxyRequest(hostInfo.getKey(),
+                        hostInfo.getValue(), hostInfo.getKey(), ip, ctx.channel());
+                HttpProxyRequestPublisher.this.publishProxyRequest(pr);
+
+                // 注意: window proxy does not require a body
+                HttpResponse response = new DefaultFullHttpResponse(
+                        request.protocolVersion(), HttpResponseStatus.OK
+                );
+                ctx.writeAndFlush(response).addListener((ChannelFutureListener) channelFuture -> {
+                    if (channelFuture.isSuccess()) {
+                        ctx.pipeline().addLast(new TunnelProxyHandler(pr, connectionManager));
                     }
-            );
-
+                });
+            } catch (Exception ex) {
+                logger.error("Proxy host[{}] name format is incorrect.", hostInfo.getKey(), ex);
+                HttpResponse response = new DefaultFullHttpResponse(
+                        request.protocolVersion(), HttpResponseStatus.BAD_REQUEST
+                );
+                ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+            }
         }
 
         /**
@@ -226,23 +224,20 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
                 request.setUri(path);
             }
 
-            dnsResolver.resolveAsync(hostInfo.getKey()).addListener(f -> {
-                if (f.isSuccess()) {
-                    InetAddress ip = (InetAddress) f.getNow();
-                    ProxyRequest pr = new ProxyRequest(hostInfo.getKey(),
-                            hostInfo.getValue(), hostInfo.getKey(), ip, ctx.channel());
-                    HttpProxyRequestPublisher.this.publishProxyRequest(pr);
+            try {
+                InetAddress ip = dnsResolver.resolveSync(host);
+                ProxyRequest pr = new ProxyRequest(hostInfo.getKey(),
+                        hostInfo.getValue(), hostInfo.getKey(), ip, ctx.channel());
+                HttpProxyRequestPublisher.this.publishProxyRequest(pr);
 
-                    ctx.pipeline().addLast(new PlaintextProxyHandler(pr, request, connectionManager));
-                } else {
-                    logger.error("Proxy host[{}] name format is incorrect.", hostInfo.getKey());
-                    HttpResponse response = new DefaultFullHttpResponse(
-                            request.protocolVersion(), HttpResponseStatus.BAD_REQUEST
-                    );
-                    ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-                }
-            });
-
+                ctx.pipeline().addLast(new PlaintextProxyHandler(pr, request, connectionManager));
+            } catch (Exception ex) {
+                logger.error("Proxy host[{}] name format is incorrect.", hostInfo.getKey(), ex);
+                HttpResponse response = new DefaultFullHttpResponse(
+                        request.protocolVersion(), HttpResponseStatus.BAD_REQUEST
+                );
+                ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+            }
         }
 
         /**
