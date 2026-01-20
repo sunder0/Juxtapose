@@ -102,7 +102,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
                     .option(ChannelOption.SO_REUSEADDR, true)           // 启用地址重用, 允许绑定到相同的 IP 地址和端口组合
                     .childOption(ChannelOption.TCP_NODELAY, true)       // 禁用Nagle算法， 提高响应速度
                     .childOption(ChannelOption.SO_REUSEADDR, true)
-                    .childOption(ChannelOption.SO_LINGER, 5)            // 快速关闭客户端连接
+                    .childOption(ChannelOption.SO_LINGER, 0)            // 快速关闭客户端连接
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
                     .childOption(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000);
             boot.childHandler(new ChannelInitializer<SocketChannel>() {
@@ -188,7 +188,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             Pair<String, Integer> hostInfo = parseHostInfoFromURI(ctx, request);
 
             try {
-                InetAddress ip = dnsResolver.resolveSync(host);
+                InetAddress ip = dnsResolver.resolveSync(hostInfo.getKey());
                 ProxyRequest pr = new ProxyRequest(hostInfo.getKey(),
                         hostInfo.getValue(), hostInfo.getKey(), ip, ctx.channel());
                 HttpProxyRequestPublisher.this.publishProxyRequest(pr);
@@ -228,7 +228,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             }
 
             try {
-                InetAddress ip = dnsResolver.resolveSync(host);
+                InetAddress ip = dnsResolver.resolveSync(hostInfo.getKey());
                 ProxyRequest pr = new ProxyRequest(hostInfo.getKey(),
                         hostInfo.getValue(), hostInfo.getKey(), ip, ctx.channel());
                 HttpProxyRequestPublisher.this.publishProxyRequest(pr);
