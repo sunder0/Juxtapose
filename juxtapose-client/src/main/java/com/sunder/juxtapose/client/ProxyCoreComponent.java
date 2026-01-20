@@ -10,6 +10,7 @@ import com.sunder.juxtapose.client.system.SystemProxySettingAdapter;
 import com.sunder.juxtapose.client.ui.MainUIComponent;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
+import com.sunder.juxtapose.common.Constants;
 import com.sunder.juxtapose.common.Platform;
 import com.sunder.juxtapose.common.ProxyMode;
 import com.sunder.juxtapose.common.connection.DefaultConnectionManager;
@@ -85,15 +86,15 @@ public class ProxyCoreComponent extends BaseCompositeComponent<StandardClient> i
 
         ProxyRequestSubscriber subscriber;
         if (proxyMode == ProxyMode.GLOBAL) {
-            // todo: 默认全局代理走url-test组，会选择一个最低耗时的节点
-            subscriber = proxyNodeManager.proxyNode("Default", request);
+            // 全局代理默认走Global组
+            subscriber = proxyNodeManager.proxyNode(Constants.GLOBAL_NAME, request);
         } else if (proxyMode == ProxyMode.DIRECT) {
             subscriber = proxyNodeManager.directNode(request);
         } else if (proxyMode == ProxyMode.RULE) {
             RuleResult result = proxyRuleEngine.match(request.getDomain(), request.getIp(), request.getPort());
             switch (result.action) {
                 case REJECT:
-                    logger.warn("current proxy request[{}] was rejected.", request.requestUri());
+                    logger.warn("Current proxy request[{}] was rejected.", request.requestUri());
                     request.close();
                     return;
                 case DIRECT:

@@ -19,6 +19,20 @@ public interface Config extends Named {
     ConfigManager<?> getConfigManager();
 
     /**
+     * 添加一个配置监听类
+     *
+     * @param listener com.sunder.juxtapose.common.ConfigListener
+     */
+    void addConfigListener(ConfigListener listener);
+
+    /**
+     * 移除一个配置监听类
+     *
+     * @param listener com.sunder.juxtapose.common.ConfigListener
+     */
+    void removeConfigListener(ConfigListener listener);
+
+    /**
      * 能否保存
      *
      * @return boolean

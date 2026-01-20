@@ -15,16 +15,18 @@ import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
 import com.sunder.juxtapose.client.subscriber.HttpProxyRequestSubscriber;
 import com.sunder.juxtapose.client.subscriber.JuxtaProxyRequestSubscriber;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
-import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import com.sunder.juxtapose.common.proxy.ProxyRequestSubscriber;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -43,8 +45,6 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     private CertComponent certComponent;
     // 延迟url测试
     private ProxyServerUrlTestVisitor urlTestVisitor;
-    // select 类型的组，每个profile只允许有一个
-    private ProxyServerNodeGroupConfig selectGroup;
     // 直连服务节点, NAME -> ProxyRequestSubscriber
     private final Map<String, ProxyRequestSubscriber> directNodes = new ConcurrentHashMap<>(16);
     // 代理服务节点, NAME -> ProxyRequestSubscriber
@@ -75,6 +75,20 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         urlTestVisitor = new ProxyServerUrlTestVisitor(ccfg);
 
         super.initInternal();
+    }
+
+    @Override
+    protected void startInternal() {
+        super.startInternal();
+
+        // 给每个组默认选择一个延迟最低的节点
+        ClientApplicationContext cac = ((ClientApplicationContext) context);
+        for (Entry<String, ProxyGroup> proxyGroup : proxyGroups.entrySet()) {
+            Optional<ProxyRequestSubscriber> minLatency = proxyGroup.getValue().nodes.values().stream()
+                    .min(Comparator.comparingLong(ProxyRequestSubscriber::proxyLatency));
+            minLatency.ifPresent(
+                    proxyRequestSubscriber -> cac.addSelectNode(proxyGroup.getKey(), proxyRequestSubscriber.getName()));
+        }
     }
 
     /**
@@ -181,12 +195,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         }
 
         // 代理节点分组
-        checkProfileGroup();
         for (ProxyServerNodeGroupConfig group : proxyServerCfg.getProxyNodeGroupConfigs()) {
-            if (ProxyGroupType.SELECT.getVal().equalsIgnoreCase(group.type)) {
-                selectGroup = group;
-            }
-
             Map<String, ProxyRequestSubscriber> subscribers = new LinkedHashMap<>(64);
             for (String proxyNode : group.proxies) {
                 subscribers.put(proxyNode, proxyNodes.get(proxyNode));
@@ -212,13 +221,6 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
             }
 
             proxyGroups.put(group.name, new ProxyGroup(selectStrategy, subscribers));
-        }
-    }
-
-    private void checkProfileGroup() {
-        long count = proxyServerCfg.getProxyNodeGroupConfigs().stream().filter(e -> e.type.equals("select")).count();
-        if (count > 1) {
-            throw new ComponentException("There can only be one select group type.");
         }
     }
 

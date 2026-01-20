@@ -3,11 +3,12 @@ package com.sunder.juxtapose.client.ui.panel;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
 import com.sunder.juxtapose.client.ClientApplicationContext;
-import com.sunder.juxtapose.client.group.ProxyGroupType;
+import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeGroupConfig;
+import com.sunder.juxtapose.client.group.ProxyGroupType;
 import com.sunder.juxtapose.client.ui.MainUIComponent;
 import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
 import static com.sunder.juxtapose.client.ui.UIUtils.createSettingSection;
@@ -15,6 +16,8 @@ import static com.sunder.juxtapose.client.ui.UIUtils.showAlert;
 import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
 import static com.sunder.juxtapose.client.ui.UIUtils.styleTextField;
 import com.sunder.juxtapose.common.BaseModule;
+import com.sunder.juxtapose.common.Constants;
+import com.sunder.juxtapose.common.ProxyMode;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
@@ -47,6 +50,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -57,6 +61,7 @@ import java.util.stream.Collectors;
 public class ProxiesPanel extends BaseModule<MainUIComponent> {
     private Logger logger = LoggerFactory.getLogger(ProxiesPanel.class);
     private VBox mainPane;
+    private ClientConfig ccfg;
     private ProxyServerConfig pscfg;
     private ProxyRuleConfig prcfg;
     private ClientApplicationContext context;
@@ -68,13 +73,19 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
     private Map<String, String> selectedNodeMap; // 存储每个分组选中的节点
     private Map<String, Boolean> groupExpandedMap = new HashMap<>(); // 存储每个分组的展开状态
 
-    public ProxiesPanel(MainUIComponent belongComponent, ProxyServerConfig pscfg, ProxyRuleConfig prcfg) {
+    public ProxiesPanel(MainUIComponent belongComponent, ClientConfig ccfg, ProxyServerConfig pscfg,
+            ProxyRuleConfig prcfg) {
         super("PROXIES_PANEL", belongComponent);
+        this.ccfg = ccfg;
         this.pscfg = pscfg;
         this.prcfg = prcfg;
         this.context = belongComponent.getApplicationContext(ClientApplicationContext.class);
 
         initializeProxyData();
+        ccfg.addConfigListener(event -> {
+            clearAllProxyData();
+            initializeProxyData();
+        });
         initializeUI();
     }
 
@@ -83,18 +94,30 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
      */
     private void initializeProxyData() {
         // 赋值组列表
-        for (ProxyServerNodeGroupConfig group : pscfg.getProxyNodeGroupConfigs()) {
+        List<ProxyServerNodeGroupConfig> proxyGroups = pscfg.getProxyNodeGroupConfigs();
+        if (ProxyMode.GLOBAL == ccfg.getProxyMode()) {
+            proxyGroups = proxyGroups.stream().filter(g -> g.name.equals(Constants.GLOBAL_NAME))
+                    .collect(Collectors.toList());
+        } else {
+            proxyGroups = proxyGroups.stream().filter(g -> !g.name.equals(Constants.GLOBAL_NAME))
+                    .collect(Collectors.toList());
+        }
+        for (ProxyServerNodeGroupConfig group : proxyGroups) {
             groups.add(new ProxyGroup(group.name, group.type));
         }
         // 初始化组的展开状态
         for (ProxyGroup group : groups) {
+            if (group.name.equals(Constants.GLOBAL_NAME)) {
+                groupExpandedMap.put(group.getName(), true);
+                continue;
+            }
             groupExpandedMap.put(group.getName(), false);
         }
 
         // 赋值每个组节点列表
         Map<String, ProxyServerNodeConfig> proxyNodes = pscfg.getProxyNodeConfigs().stream()
                 .collect(Collectors.toMap(e -> e.name, e -> e));
-        for (ProxyServerNodeGroupConfig group : pscfg.getProxyNodeGroupConfigs()) {
+        for (ProxyServerNodeGroupConfig group : proxyGroups) {
             proxyNodesMap.computeIfAbsent(group.name, k -> FXCollections.observableArrayList());
             for (String nodeName : group.proxies) {
                 ProxyServerNodeConfig nodeConfig = proxyNodes.get(nodeName);
@@ -229,7 +252,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             // 清空现有数据
             clearAllProxyData();
             initializeProxyData();
-            context.truncateAndLoadProxySubscribers();
+            context.refreshProxySubscribers();
 
             showAlert(AlertType.INFORMATION, "Success", "Proxy configuration downloaded successfully");
             groupListView.refresh();
@@ -259,7 +282,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
                 clearAllProxyData();
                 initializeProxyData();
-                context.truncateAndLoadProxySubscribers();
+                context.refreshProxySubscribers();
 
                 showAlert(AlertType.INFORMATION, "Success",
                         "Proxy configuration imported successfully from " + selectedFile.getName());
@@ -284,7 +307,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
                 showAlert(AlertType.ERROR, "Error", "Desktop is not supported on this system");
             }
         } catch (IOException ex) {
-            showAlert(AlertType.ERROR ,"Error", "Failed to open directory: " + ex.getMessage());
+            showAlert(AlertType.ERROR, "Error", "Failed to open directory: " + ex.getMessage());
         }
     }
 
@@ -292,7 +315,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
     private void clearAllProxyData() {
         groups.clear();
         proxyNodesMap.clear();
-        selectedNodeMap.clear();
+       // selectedNodeMap.clear();
         groupExpandedMap.clear();
     }
 

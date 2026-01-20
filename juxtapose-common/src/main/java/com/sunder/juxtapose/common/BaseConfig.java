@@ -1,7 +1,9 @@
 package com.sunder.juxtapose.common;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author : sunder
@@ -13,6 +15,7 @@ public abstract class BaseConfig implements Config {
     protected String name;
     protected Path path; // 配置路径的封装
     protected final ConfigManager<?> configManager;
+    protected final List<ConfigListener> listeners = new CopyOnWriteArrayList<>();
 
     public BaseConfig(ConfigManager<?> configManager, String name) {
         this.configManager = configManager;
@@ -49,6 +52,26 @@ public abstract class BaseConfig implements Config {
     @Override
     public void setName(String name) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void addConfigListener(ConfigListener listener) {
+        listeners.add(listener);
+    }
+
+    @Override
+    public void removeConfigListener(ConfigListener listener) {
+        listeners.remove(listener);
+    }
+
+    /**
+     * 传播配置更改事件
+     */
+    protected void fireConfigChange(String property, Object oldVal, Object newVal) {
+        ConfigChangeEvent eventObj = new ConfigChangeEvent(this, property, oldVal, newVal);
+        for (ConfigListener listener : listeners) {
+            listener.configChange(eventObj);
+        }
     }
 
     @Override

@@ -6,9 +6,11 @@ import cn.hutool.core.io.resource.FileResource;
 import cn.hutool.core.lang.Dict;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.setting.yaml.YamlUtil;
+import com.sunder.juxtapose.client.group.ProxyGroupType;
 import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigException;
 import com.sunder.juxtapose.common.ConfigManager;
+import static com.sunder.juxtapose.common.Constants.GLOBAL_NAME;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 import com.sunder.juxtapose.common.ProxyProtocol;
 
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * @author : sunder
@@ -121,6 +124,11 @@ public class ProxyServerConfig extends BaseConfig {
             proxyNodeConfigs.add(proxyConfig);
         }
 
+        // 所有节点和组都是global组内的节点，global组暂默认url-test类型, todo:目前暂不支持组内含组的情况
+        List<String> globalNodes = proxyNodeConfigs.stream().map(n -> n.name).collect(Collectors.toList());
+        proxyNodeGroupConfigs.add(
+                new ProxyServerNodeGroupConfig(GLOBAL_NAME, globalNodes, ProxyGroupType.SELECT.getVal()));
+
         // 获取proxy group config
         List<Map<String, Object>> proxyGroupInfos = config.getBean("proxy-groups");
         for (Map<String, Object> proxyGroupInfo : proxyGroupInfos) {
@@ -186,6 +194,12 @@ public class ProxyServerConfig extends BaseConfig {
         public String name; // 代理组名称
         public List<String> proxies; // 代理组里的节点
         public String type; // 代理组的类型
+
+        public ProxyServerNodeGroupConfig(String name, List<String> proxies, String type) {
+            this.name = name;
+            this.proxies = proxies;
+            this.type = type;
+        }
 
         @Override
         public boolean equals(Object object) {

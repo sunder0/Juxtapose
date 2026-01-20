@@ -12,8 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ClientApplicationContext implements ApplicationContext {
     private String profileUrl; // 目前只支持一个profile链接下载，
-    private long uploadBytes; // 上行字节数 ，单位：B
-    private long downloadBytes; // 下行字节数, 单位：B
     // 只存放每个组里选择的当前节点，比如select组是用户选择的节点，urltest组则是存放的延迟最低的节点等
     // group name -> node name
     private Map<String, String> selectNodes = new ConcurrentHashMap<>(16);
@@ -60,27 +58,11 @@ public class ClientApplicationContext implements ApplicationContext {
         this.profileUrl = profileUrl;
     }
 
-    public void truncateAndLoadProxySubscribers() {
+    public void refreshProxySubscribers() {
         proxyNodeManager.refreshProxySubscribers();
     }
 
     public void registerProxyNodeManager(ProxyServerNodeManager proxyNodeManager) {
         this.proxyNodeManager = proxyNodeManager;
-    }
-
-    public long getUploadBytes() {
-        return uploadBytes;
-    }
-
-    public void setUploadBytes(long uploadBytes) {
-        this.uploadBytes = uploadBytes;
-    }
-
-    public long getDownloadBytes() {
-        return downloadBytes;
-    }
-
-    public void setDownloadBytes(long downloadBytes) {
-        this.downloadBytes = downloadBytes;
     }
 }

@@ -80,7 +80,9 @@ public class ClientConfig extends BaseConfig {
     }
 
     public void setProxyMode(String proxyMode) {
+        String oldVal = config.get("proxy.mode");
         config.set("proxy.mode", proxyMode.toUpperCase());
+        fireConfigChange("proxy.mode", oldVal, proxyMode.toUpperCase());
         save();
     }
 

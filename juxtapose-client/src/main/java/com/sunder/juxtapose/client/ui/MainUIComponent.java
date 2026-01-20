@@ -102,7 +102,7 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
 
         ProxyServerConfig pscfg = configManager.getConfigByName(ProxyServerConfig.NAME, ProxyServerConfig.class);
         ProxyRuleConfig prcfg = configManager.getConfigByName(ProxyRuleConfig.NAME, ProxyRuleConfig.class);
-        addModule(new ProxiesPanel(this, pscfg, prcfg));
+        addModule(new ProxiesPanel(this, ccfg, pscfg, prcfg));
 
         // 启动UI线程
         mainUIExecutor.execute(() -> MainUI.launch(MainUI.class));
