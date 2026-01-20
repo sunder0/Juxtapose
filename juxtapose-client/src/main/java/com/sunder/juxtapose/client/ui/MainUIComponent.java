@@ -8,6 +8,7 @@ import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig;
 import static com.sunder.juxtapose.client.ui.UIUtils.createMinimizeAlert;
+import static com.sunder.juxtapose.client.ui.UIUtils.showAlert;
 import com.sunder.juxtapose.client.ui.def.RateDisplay;
 import com.sunder.juxtapose.client.ui.panel.GeneralPanel;
 import com.sunder.juxtapose.client.ui.panel.LogsPanel;
@@ -26,6 +27,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
@@ -42,7 +44,11 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.awt.Desktop;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -55,6 +61,7 @@ import java.util.concurrent.Executors;
 public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
     public final static String NAME = "MAIN_UI_COMPONENT";
 
+    private static Logger logger;
     private static ClientConfig ccfg;
     private final Executor mainUIExecutor;
     private static Map<String, VBox> panels = new HashMap<>();
@@ -69,6 +76,7 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
         this.mainUIExecutor =
                 Executors.newSingleThreadExecutor(ThreadFactoryBuilder.create().setNamePrefix("main-ui-").build());
         this.clientOperate = clientOperate;
+        logger = LoggerFactory.getLogger(MainUIComponent.class);
         cac = (ClientApplicationContext) context;
 
         // 监听上下行流量，更新至UI
@@ -203,6 +211,31 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             title.setFont(Font.font("Segoe UI", 19));
             title.setTextFill(Color.rgb(33, 150, 243));
 
+            title.setOnMouseEntered(e -> {
+                title.setStyle("-fx-cursor: hand; -fx-underline: true;");
+            });
+
+            title.setOnMouseExited(e -> {
+                title.setTextFill(Color.rgb(33, 150, 243)); // 恢复原色
+                title.setStyle("-fx-underline: false;");
+            });
+
+            title.setOnMouseClicked(e -> {
+                if (Desktop.isDesktopSupported()) {
+                    Desktop desktop = Desktop.getDesktop();
+                    if (desktop.isSupported(Desktop.Action.BROWSE)) {
+                        try {
+                            desktop.browse(new URI("https://github.com/sunder0/Juxtapose"));
+                        } catch (Exception ex) {
+                            logger.error("Failed to open the project link[{}].", "https://github"
+                                    + ".com/sunder0/Juxtapose", ex);
+                        }
+                    } else {
+                        showAlert(AlertType.ERROR, "Error", "Opening a desktop browser is not supported.");
+                    }
+                }
+            });
+
             // 填充空间
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -235,27 +268,20 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
             generalBtn.setSelected(true);
 
             ToggleButton proxiesBtn = createNavButton("Proxies");
-            // ToggleButton profilesBtn = createNavButton("Profiles");
-            // ToggleButton settingsBtn = createNavButton("Settings");
             ToggleButton logsBtn = createNavButton("Logs");
 
             // 按钮组
             ToggleGroup navGroup = new ToggleGroup();
             generalBtn.setToggleGroup(navGroup);
             proxiesBtn.setToggleGroup(navGroup);
-            // profilesBtn.setToggleGroup(navGroup);
-            // settingsBtn.setToggleGroup(navGroup);
             logsBtn.setToggleGroup(navGroup);
 
             // 添加事件处理
             generalBtn.setOnAction(e -> showPanel("General"));
             proxiesBtn.setOnAction(e -> showPanel("Proxies"));
-            // profilesBtn.setOnAction(e -> showPanel("Profiles"));
-            // settingsBtn.setOnAction(e -> showPanel("Settings"));
             logsBtn.setOnAction(e -> showPanel("Logs"));
 
             // 添加按钮到导航栏
-            // navigation.getChildren().addAll(generalBtn, proxiesBtn, profilesBtn, settingsBtn, logsBtn);
             navigation.getChildren().addAll(generalBtn, proxiesBtn, logsBtn);
 
             // 底部区域
