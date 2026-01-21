@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.client.system;
 
+import com.sunder.juxtapose.client.conf.ClientConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +19,12 @@ import java.util.stream.Collectors;
 public class MacOSSystemProxySetting implements SystemProxySetting {
     private final Logger logger = LoggerFactory.getLogger(MacOSSystemProxySetting.class);
     private final String activeService = "Wi-Fi"; // 默认网络服务使用wifi，目前暂不支持有线连接，后续添加
+
+    private ClientConfig cfg;
+
+    public MacOSSystemProxySetting(ClientConfig cfg) {
+        this.cfg = cfg;
+    }
 
     /**
      * 开启系统本地代理
@@ -44,6 +51,8 @@ public class MacOSSystemProxySetting implements SystemProxySetting {
             }
 
             setSocksProxy(proxyHost, proxyPort, activeService);
+            setHttpProxy(proxyHost, cfg.getHttpPort(), activeService);
+            setHttpsProxy(proxyHost, cfg.getHttpPort(), activeService);
 
             List<String> passDomains = Arrays.stream(ignoreOverride.split(";")).collect(Collectors.toList());
             setProxyBypassList(activeService, passDomains);

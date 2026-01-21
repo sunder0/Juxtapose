@@ -48,7 +48,7 @@ public class SystemProxySettingAdapter extends BaseComponent<ProxyCoreComponent>
             systemProxySetting.enableSystemProxy(cfg.getProxyHost(), cfg.getHttpPort(), cfg.getProxyOverride());
         } else if (Platform.isMac()) {
             if (systemProxySetting == null) {
-                systemProxySetting = new MacOSSystemProxySetting();
+                systemProxySetting = new MacOSSystemProxySetting(cfg);
             }
             systemProxySetting.enableSystemProxy(cfg.getProxyHost(), cfg.getSocks5Port(), cfg.getProxyOverride());
         }
