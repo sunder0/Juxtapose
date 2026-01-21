@@ -126,7 +126,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                     cf.channel().pipeline().addLast(new HttpRelayMessageHandler(request, connection));
                     ChannelTrafficShapingHandler trafficHandler =
                             cf.channel().pipeline().get(ChannelTrafficShapingHandler.class);
-                    connection.bindTrafficCounter(trafficHandler.trafficCounter());
+                    connManager.registerTrafficHandler(cf.channel(), trafficHandler);
 
                     connection.bindProxyChannel((SocketChannel) cf.channel());
 
@@ -183,7 +183,6 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                     cf.channel().pipeline().addLast(new HttpRelayMessageHandler(request, connection));
                     ChannelTrafficShapingHandler trafficHandler =
                             cf.channel().pipeline().get(ChannelTrafficShapingHandler.class);
-                    connection.bindTrafficCounter(trafficHandler.trafficCounter());
 
                     logger.info("Connect Http proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
                 } else {
@@ -220,6 +219,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
                     logger.error("Http proxy server auth fail.");
                     connection.closeForce().addListener(
                             (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
+                    connManager.unregisterTrafficHandler(ctx.channel());
                 }
 
                 if (response.status() == HttpResponseStatus.OK) {
@@ -242,6 +242,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
             logger.error("Http(s) proxy channel encountered an error[{}].", cause.getMessage(), cause);
             connection.closeForce().addListener(
                     (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
+            connManager.unregisterTrafficHandler(ctx.channel());
         }
 
         /**
@@ -281,6 +282,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
             // todo：通知关闭代理服务端对应连接
             connection.closeForce().addListener(
                     (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
+            connManager.unregisterTrafficHandler(ctx.channel());
         }
 
         @Override

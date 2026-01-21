@@ -232,6 +232,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                 connection.close();
             }
             fixedChannelPool.release(ctx.channel());
+            connManager.unregisterTrafficHandler(ctx.channel());
         }
 
         @Override
@@ -369,7 +370,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
                     cf.channel().pipeline().addLast(new JuxtaProxyRequestSubscriber.ProxyRelayMessageHandler());
                     ChannelTrafficShapingHandler trafficHandler =
                             cf.channel().pipeline().get(ChannelTrafficShapingHandler.class);
-                    connection.bindTrafficCounter(trafficHandler.trafficCounter());
+                    connManager.registerTrafficHandler(cf.channel(), trafficHandler);
 
                     logger.info("Connect Juxta proxy relay server[{}:{}] successful!", cfg.server, cfg.port);
                 } else {

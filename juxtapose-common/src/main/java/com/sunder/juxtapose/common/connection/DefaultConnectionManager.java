@@ -7,6 +7,7 @@ import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 import io.netty.handler.traffic.TrafficCounter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +31,10 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
 
     protected final Logger logger;
     private final ScheduledThreadPoolExecutor executor;
-    // 存放sessionId->session的映射
+    // 存放connectionId->Connection的映射
     protected final Map<String, Connection> connectionMap = new ConcurrentHashMap<>(16);
+    // channel -> TrafficHandlerInfo
+    private final Map<Channel, TrafficHandlerInfo> trafficHandlers = new ConcurrentHashMap<>(16);
     // 存放connectionStats数据的定时报告监听
     private final List<Consumer<ConnectionStats>> listeners = new CopyOnWriteArrayList<>();
 
@@ -122,6 +125,20 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
     }
 
     /**
+     * 注册TrafficShapingHandler
+     */
+    public void registerTrafficHandler(Channel channel, ChannelTrafficShapingHandler handler) {
+        trafficHandlers.put(channel, new TrafficHandlerInfo(channel, handler));
+    }
+
+    /**
+     * 注销TrafficShapingHandler
+     */
+    public TrafficHandlerInfo unregisterTrafficHandler(Channel channel) {
+        return trafficHandlers.remove(channel);
+    }
+
+    /**
      * 添加对stats数据的报告监听
      *
      * @param listener java.util.function.Consumer
@@ -156,13 +173,18 @@ public class DefaultConnectionManager<T extends Component<?>> extends BaseModule
      */
     private void reportStats() {
         ConnectionStats totalStats = new ConnectionStats();
-        for (Connection conn : connectionMap.values()) {
-            TrafficCounter counter = conn.getTrafficCounter();
-            if (counter == null) {
+        for (TrafficHandlerInfo handlerInfo : trafficHandlers.values()) {
+            if (!handlerInfo.getChannel().isActive()) {
                 continue;
             }
-            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + counter.lastWrittenBytes());
-            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + counter.lastReadBytes());
+            TrafficCounter counter = handlerInfo.getTrafficShapingHandler().trafficCounter();
+
+            totalStats.setBytesUploaded(totalStats.getBytesUploaded() + (counter.cumulativeWrittenBytes()
+                    - handlerInfo.getLastCumulativeWrittenBytes()));
+            totalStats.setBytesDownloaded(totalStats.getBytesDownloaded() + (counter.cumulativeReadBytes()
+                    - handlerInfo.getLastCumulativeReadBytes()));
+            handlerInfo.setLastCumulativeWrittenBytes(counter.cumulativeWrittenBytes());
+            handlerInfo.setLastCumulativeReadBytes(counter.cumulativeReadBytes());
         }
 
         // 发布统计信息（用于UI显示）

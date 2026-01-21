@@ -73,6 +73,7 @@ public interface Connection {
      * 绑定流量统计工具
      * @param trafficCounter io.netty.handler.traffic.TrafficCounter
      */
+    @Deprecated
     void bindTrafficCounter(TrafficCounter trafficCounter);
 
     /**
