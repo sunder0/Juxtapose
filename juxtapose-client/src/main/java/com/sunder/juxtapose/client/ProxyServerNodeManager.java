@@ -15,6 +15,7 @@ import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
 import com.sunder.juxtapose.client.subscriber.HttpProxyRequestSubscriber;
 import com.sunder.juxtapose.client.subscriber.JuxtaProxyRequestSubscriber;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
+import com.sunder.juxtapose.common.Component;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
@@ -38,7 +39,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     public final static String NAME = "PROXY_SERVER_NODE_MANAGER";
 
     // 是否在更新中
-    private final AtomicBoolean updProxy = new AtomicBoolean(false);
+    private final AtomicBoolean updProxying = new AtomicBoolean(false);
 
     private ProxyServerConfig proxyServerCfg;
     // 证书信息
@@ -82,13 +83,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         super.startInternal();
 
         // 给每个组默认选择一个延迟最低的节点
-        ClientApplicationContext cac = ((ClientApplicationContext) context);
-        for (Entry<String, ProxyGroup> proxyGroup : proxyGroups.entrySet()) {
-            Optional<ProxyRequestSubscriber> minLatency = proxyGroup.getValue().nodes.values().stream()
-                    .min(Comparator.comparingLong(ProxyRequestSubscriber::proxyLatency));
-            minLatency.ifPresent(
-                    proxyRequestSubscriber -> cac.addSelectNode(proxyGroup.getKey(), proxyRequestSubscriber.getName()));
-        }
+        defaultSelectLowestLatencyNode();
     }
 
     /**
@@ -110,8 +105,8 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
      * @param groupName 代理组名称
      */
     public ProxyRequestSubscriber proxyNode(String groupName, ProxyRequest request) {
-        // 在更新订阅期间，暂时不可用，临时，todo：可以添加一个缓存队列用于处理更新代理
-        if (updProxy.get()) {
+        // 在更新订阅期间，暂时不可用，临时，todo：可以添加一个缓存队列用于处理更新代理期间来的流量
+        if (updProxying.get()) {
             return directNode(request);
         }
 
@@ -161,15 +156,28 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     }
 
     /**
-     * 清空代理订阅节点
+     * 刷新代理订阅节点
      */
     public void refreshProxySubscribers() {
-        if (updProxy.compareAndSet(false, true)) {
+        if (updProxying.compareAndSet(false, true)) {
+            for (ProxyRequestSubscriber subscriber : proxyNodes.values()) {
+                Component<?> component = (Component<?>) subscriber;
+                component.destroy();
+            }
             proxyNodes.clear();
             proxyGroups.clear();
 
             loadProxySubscribers();
-            updProxy.set(false);
+            for (ProxyRequestSubscriber subscriber : proxyNodes.values()) {
+                if (subscriber.isProxy()) {
+                    Component<?> component = (Component<?>) subscriber;
+                    component.init();
+                    component.start();
+                }
+            }
+            defaultSelectLowestLatencyNode();
+
+            updProxying.set(false);
         }
     }
 
@@ -221,6 +229,19 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
             }
 
             proxyGroups.put(group.name, new ProxyGroup(selectStrategy, subscribers));
+        }
+    }
+
+    /**
+     * 默认初始化选择延迟最低的节点
+     */
+    private void defaultSelectLowestLatencyNode() {
+        ClientApplicationContext cac = ((ClientApplicationContext) context);
+        for (Entry<String, ProxyGroup> proxyGroup : proxyGroups.entrySet()) {
+            Optional<ProxyRequestSubscriber> minLatency = proxyGroup.getValue().nodes.values().stream()
+                    .min(Comparator.comparingLong(ProxyRequestSubscriber::proxyLatency));
+            minLatency.ifPresent(
+                    proxyRequestSubscriber -> cac.addSelectNode(proxyGroup.getKey(), proxyRequestSubscriber.getName()));
         }
     }
 

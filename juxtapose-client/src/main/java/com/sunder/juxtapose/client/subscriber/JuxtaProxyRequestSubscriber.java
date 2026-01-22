@@ -118,6 +118,7 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
     @Override
     protected void destroyInternal() {
+        fixedChannelPool.shutdown();
         parent.removeProxyRequestSubscriber(this);
 
         super.destroyInternal();

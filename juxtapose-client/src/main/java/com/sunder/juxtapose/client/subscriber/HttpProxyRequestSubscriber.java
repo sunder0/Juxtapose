@@ -112,6 +112,7 @@ public class HttpProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMan
 
     @Override
     protected void destroyInternal() {
+        cachedChannelPool.shutdown();
         parent.removeProxyRequestSubscriber(this);
 
         super.destroyInternal();

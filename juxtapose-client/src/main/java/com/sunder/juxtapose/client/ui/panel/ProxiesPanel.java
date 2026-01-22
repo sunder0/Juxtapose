@@ -251,8 +251,8 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
             // 清空现有数据
             clearAllProxyData();
-            initializeProxyData();
             context.refreshProxySubscribers();
+            initializeProxyData();
 
             showAlert(AlertType.INFORMATION, "Success", "Proxy configuration downloaded successfully");
             groupListView.refresh();
@@ -281,8 +281,8 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
                 pscfg.loadYamlStream(fis);
 
                 clearAllProxyData();
-                initializeProxyData();
                 context.refreshProxySubscribers();
+                initializeProxyData();
 
                 showAlert(AlertType.INFORMATION, "Success",
                         "Proxy configuration imported successfully from " + selectedFile.getName());
