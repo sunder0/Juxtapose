@@ -64,6 +64,10 @@ encrypt.server.port=2202
 sh startup_server.sh
 ```
 
+备注: 代理服务端机器推荐启用TCP BBR提高吞吐量，centos7可以参照此链接 https://www.cnblogs.com/1399z3blog/p/17605797.html 
+
+其他相关服务器购买准备事宜可以参照左耳朵大神的文章：https://github.com/haoel/haoel.github.io
+
 ### client运行:
 
 修改conf目录下的proxy_servers.yaml配置，修改代理节点ip、port等信息，比如：

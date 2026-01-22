@@ -35,12 +35,6 @@ public class ProxyServerUrlTestVisitor {
 
     private final Logger logger;
     private final ClientConfig ccfg;
-    private final EmbeddedChannel channel = new EmbeddedChannel(new HttpRequestEncoder() {
-        @Override
-        protected boolean isContentAlwaysEmpty(HttpRequest msg) {
-            return true;
-        }
-    });
 
     public ProxyServerUrlTestVisitor(ClientConfig ccfg) {
         this.ccfg = ccfg;
@@ -112,6 +106,12 @@ public class ProxyServerUrlTestVisitor {
      * 提取HTTP请求发送逻辑
      */
     private void sendHttpRequest(ProxyRequestSubscriber subscriber, Connection connection, ProxyRequest request) {
+        final EmbeddedChannel channel = new EmbeddedChannel(new HttpRequestEncoder() {
+            @Override
+            protected boolean isContentAlwaysEmpty(HttpRequest msg) {
+                return true;
+            }
+        });
         // 构建HTTP请求
         HttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, ccfg.getLatencyUrl());
         channel.writeOutbound(httpRequest);
