@@ -1,5 +1,5 @@
 # Juxtapose
-Juxtapose是一款持续迭代中的代理（proxy）软件，目前主要协议支持HTTP和Socks5。界面如图：
+Juxtapose是一款持续迭代中的代理（proxy）软件，支持Windows和MacOs运行，目前主要协议支持HTTP和Socks5。界面如图：
 
 ![ui](ui.png)
 
@@ -21,6 +21,7 @@ Juxtapose是一款持续迭代中的代理（proxy）软件，目前主要协议
 - [x] 支持Socks5协议
 - [x] 支持自定义协议
 - [x] 支持多平台的IO模型
+- [x] 支持Windows和MacOs运行
 - [ ] 支持UDP
 - [ ] 服务端建立命令Web端，支持客户端与其命令交互（连接关闭、鉴权认证...）
 - [ ] 更多的协议（Vmess、Shadowsocks、Trojan...）
