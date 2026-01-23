@@ -1,5 +1,5 @@
 # Juxtapose
-Juxtapose是一款持续迭代中的代理（proxy）软件，支持Windows和MacOs运行，目前主要协议支持HTTP和Socks5。界面如图：
+Juxtapose是一款持续迭代中的代理（proxy）软件，主要技术为Netty+JavaFx，支持Windows和MacOs运行，目前主要协议支持HTTP和Socks5。界面如图：
 
 ![ui](ui.png)
 
@@ -9,7 +9,7 @@ Juxtapose是一款持续迭代中的代理（proxy）软件，支持Windows和Ma
 
 ## 迭代中的功能
 - [x] 身份验证和授权机制
-- [x] 私有证书TLS加密通信
+- [x] TLS加密通信
 - [x] 代理连接管理
 - [x] 本地系统代理设置，参照：https://myth.cx/p/windows-proxy
 - [x] 域名ip库GEOIP支持
@@ -26,7 +26,6 @@ Juxtapose是一款持续迭代中的代理（proxy）软件，支持Windows和Ma
 - [ ] 服务端建立命令Web端，支持客户端与其命令交互（连接关闭、鉴权认证...）
 - [ ] 更多的协议（Vmess、Shadowsocks、Trojan...）
 - [ ] 插件系统
-- [ ] 公有证书加密的支持
 - [ ] ...
 
 
@@ -48,7 +47,7 @@ logging.level=INFO
 [ProxyServer]
 proxy.proto=JUXTA
 proxy.host=0.0.0.0
-proxy.port=2201
+proxy.port=443
 proxy.auth=true
 proxy.tls=true
 proxy.username=root
@@ -56,9 +55,11 @@ proxy.password=root
 
 [Encrypt] # tls加密
 encrypt.method=pem 
-encrypt.server.port=2202
+encrypt.server.port=2202 ## 用于自签名证书的下载端口
 ```
-> 注意：目前客户端与服务端之间的加密是采用的TLS，但是证书是使用的私有证书，存放在conf目录，如果有需要可以自行修改
+> 注意：目前客户端与服务端之间的加密是采用的TLS，证书存放在conf/cert目录下，默认使用PEM格式，名称固定为server.pem和server.key。项目自带的证书为自签名证书，可以用于测试。
+> 
+> **如果是使用的自签名证书的话，需要开放encrypt.server.port指定的端口让客户端来下载公钥。**
 
 运行：
 ```
@@ -76,7 +77,7 @@ sh startup_server.sh
 proxies:
   - name: testnode
     server: 127.0.0.1
-    port: 2201
+    port: 443
     tls: true
     type: JUXTA
     username: root
@@ -90,14 +91,15 @@ proxy-groups:
 ```
 解释：定义了一个叫做testnode使用JUXTA协议的代理节点（每个节点对应一个server端），并且Default组包含了该节点，且Default组使用select选择策略，表明需要用户自己选择代理节点。
 
-| 字段                 | 值                                                                                                        | 注释                                                                           |
-|:-------------------|:---------------------------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------|
-| proxies.type       | JUXTA/HTTP                                                                                               | 表明与代理节点通信是什么协议，优先使用JUXTA（自定义协议），目前HTTP暂时还有些小bug                              |
-| proxy-groups.type  | select：用户手动选择节点<br/>url-test：组内自动选择延迟最低的节点<br/>fallback：按顺序尝试节点，使用第一个可用的节点<br/>load-balance：在可用节点间进行负载均衡 | 组的选择节点策略, 表示组内的节点使用什么策略选取使用                                                  |
+| 字段                 | 值                                                                                                        | 注释                                                           |
+|:-------------------|:---------------------------------------------------------------------------------------------------------|:-------------------------------------------------------------|
+| proxies.type       | JUXTA/HTTP                                                                                               | 表明与代理节点通信是什么协议，优先使用JUXTA（自定义协议），目前HTTP暂时还有些小bug              |
+| proxy-groups.type  | select：用户手动选择节点<br/>url-test：组内自动选择延迟最低的节点<br/>fallback：按顺序尝试节点，使用第一个可用的节点<br/>load-balance：在可用节点间进行负载均衡 | 组的选择节点策略, 表示组内的节点使用什么策略选取使用                                  |
+ | proxies.certurl   | 127.0.0.1:2202                                                                                           | 代理节点自签名证书的下载地址，与服务端的encrypt.server.port对应，**使用CA机构签发的证书不用配置此参数** |
 
 > 注意：Default组是rule模式下没有匹配到任何规则的情况下最终默认匹配的组，如果需要修改，那么同时需要修改proxy_rules.yaml配置里的规则。
 > 
->看到这里如果熟悉clashwindows的话，那么肯定能发现proxies的定义是直接搬的clashwindows😂
+>看到这里如果熟悉clashwindows的话，那么肯定能发现proxies的定义是直接搬的clashforwindows😂
 
 客户端运行：
 ```
