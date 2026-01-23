@@ -59,9 +59,8 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
     private final Logger logger = LoggerFactory.getLogger(CertComponent.class);
 
     // ca证书存放路径
-    private final String SERVER_CRT = "conf/cert/server.crt";
+    private final String SERVER_CRT = "conf/cert/server.pem";
     private final String SERVER_KEY = "conf/cert/server.key";
-    private final String CA_CRT = "conf/cert/ca.crt";
     private String host;
     private Integer port;
     private SslContext sslContext;
@@ -85,7 +84,7 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
 
         Map<String, Object> encrypt = new HashMap<>(4);
         encrypt.put("server", true);
-        encrypt.put("server.crt", serverCrt.getResource().getStream());
+        encrypt.put("server.pem", serverCrt.getResource().getStream());
         encrypt.put("server.key", serverKey.getResource().getStream());
         try {
             sslContext = sslEncryptor.buildSslContext(ClientAuth.NONE, encrypt);
@@ -112,7 +111,7 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
                     p.addLast(new HttpServerCodec());
                     p.addLast(new HttpObjectAggregator(65536));
                     p.addLast(new ChunkedWriteHandler()); // 支持大文件传输
-                    p.addLast(new FileDownloadHandler(CA_CRT));  // 自定义文件处理器
+                    p.addLast(new FileDownloadHandler(SERVER_CRT));  // 自定义文件处理器
                 }
             });
 
@@ -180,7 +179,7 @@ public class CertComponent extends BaseComponent<ProxyCoreComponent> {
             HttpUtil.setContentLength(response, fileLength); // 关键：设置精确内容长度
             response.headers()
                     .set(HttpHeaderNames.CONTENT_TYPE, "application/x-x509-ca-cert")
-                    .set(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=ca.crt");
+                    .set(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=ca.pem");
 
             // 2. 将响应头和文件内容作为同一个写入操作
             ctx.write(response); // 先写入响应头

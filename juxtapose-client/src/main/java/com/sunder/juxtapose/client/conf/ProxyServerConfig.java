@@ -146,6 +146,8 @@ public class ProxyServerConfig extends BaseConfig {
         public String name;
 
         public Boolean tls;
+        public String certurl; // 自签名证书下载地址
+
         public Boolean auth;
         public String username;
         public String password;
@@ -176,6 +178,7 @@ public class ProxyServerConfig extends BaseConfig {
             return "ProxyServerNodeConfig{" +
                     "name='" + name + '\'' +
                     ", tls=" + tls +
+                    ", certurl=" + certurl +
                     ", auth=" + auth +
                     ", username='" + username + '\'' +
                     ", password='" + password + '\'' +

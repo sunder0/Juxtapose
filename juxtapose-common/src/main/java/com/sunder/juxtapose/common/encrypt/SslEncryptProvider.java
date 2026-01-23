@@ -5,18 +5,28 @@ import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 
-import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.security.KeyStore;
+import java.io.InputStreamReader;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.Security;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
 
 /**
  * @author : sunder
@@ -38,7 +48,6 @@ public class SslEncryptProvider {
 
     static {
         encryptors.put(PEMSslEncryptor.NAME, new PEMSslEncryptor());
-        encryptors.put(JksSslEncryptor.NAME, new JksSslEncryptor());
     }
 
     /**
@@ -68,29 +77,50 @@ public class SslEncryptProvider {
         public SslContext buildSslContext(ClientAuth clientAuth, Map<String, Object> encrypt) throws Exception {
             boolean server = (boolean) encrypt.getOrDefault("server", false);
             if (server) {
-                SslContextBuilder builder = SslContextBuilder.forServer(
-                                (InputStream) encrypt.get("server.crt"), // 服务端证书
-                                (InputStream) encrypt.get("server.key")  // 服务端私钥
-                        )
+                // 加载私钥
+                InputStream keyStream = (InputStream) encrypt.get("server.key");
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                byte[] buffer = new byte[1024];
+                int len;
+                while ((len = keyStream.read(buffer)) != -1) {
+                    os.write(buffer, 0, len);
+                }
+                byte[] keyBytes = os.toByteArray();
+                os.close();
+
+                PrivateKey privateKey = loadPrivateKeyWithBC(keyBytes);
+
+                // 加载证书
+                CertificateFactory cf = CertificateFactory.getInstance("X.509");
+                Collection<? extends Certificate> certificates =
+                        cf.generateCertificates((InputStream) encrypt.get("server.pem"));
+
+                SslContextBuilder builder = SslContextBuilder
+                        .forServer(privateKey, (Collection<X509Certificate>) certificates)
                         .sslProvider(SslProvider.JDK)
                         .clientAuth(clientAuth)
                         .protocols(SUPPORT_PROTOCOLS)
                         .ciphers(SUPPORT_CIPHERS);
+
                 // 非单向认证
                 if (clientAuth != ClientAuth.NONE) {
-                    builder.trustManager((InputStream) encrypt.get("ca.crt"));
+                    throw new UnsupportedOperationException("Non-one-way encryption is not supported!");
                 }
                 return builder.build();
             } else {
                 SslContextBuilder builder = SslContextBuilder.forClient()
-                        .trustManager((InputStream) encrypt.get("ca.crt")) // 信任的CA证书
                         .sslProvider(SslProvider.JDK)
                         .protocols(SUPPORT_PROTOCOLS)
                         .ciphers(SUPPORT_CIPHERS);
+
+                // 如果是自己签名的证书（非ca机构颁发），需要信任
+                boolean selfSigned = (boolean) encrypt.getOrDefault("selfSigned", false);
+                if (selfSigned) {
+                    builder.trustManager((InputStream) encrypt.get("ca.pem"));
+                }
                 // 非单向认证
                 if (clientAuth != ClientAuth.NONE) {
-                    builder.keyManager((InputStream) encrypt.get("client.crt"),
-                            (InputStream) encrypt.get("client.key"));
+                    throw new UnsupportedOperationException("Non-one-way encryption is not supported!");
                 }
                 return builder.build();
             }
@@ -105,80 +135,35 @@ public class SslEncryptProvider {
         public String getName() {
             return NAME;
         }
-    }
 
-    static class JksSslEncryptor implements SslEncryptor {
-        public final static String NAME = "jks";
+        /**
+         * 使用BC统一加载私钥， 兼容PKCS8和传统RSA（PKCS1）格式
+         *
+         * @param keyBytes 私钥数据
+         * @return 私钥
+         * @throws Exception
+         */
+        private PrivateKey loadPrivateKeyWithBC(byte[] keyBytes) throws Exception {
+            if (Security.getProvider("BC") == null) {
+                Security.addProvider(new BouncyCastleProvider());
+            }
 
-        @Override
-        public SslContext buildSslContext(ClientAuth clientAuth, Map<String, Object> encrypt) throws Exception {
-            boolean server = (boolean) encrypt.getOrDefault("server", false);
-            if (server) {
-                // 加载JKS密钥库
-                KeyStore keyStore = KeyStore.getInstance("JKS");
-                try (FileInputStream fis = new FileInputStream("server.jks")) {
-                    keyStore.load(fis, "juxtapose".toCharArray());
+            try (PEMParser parser = new PEMParser(new InputStreamReader(new ByteArrayInputStream(keyBytes)))) {
+                Object object = parser.readObject();
+                JcaPEMKeyConverter converter = new JcaPEMKeyConverter().setProvider("BC");
+
+                if (object instanceof PEMKeyPair) {
+                    PEMKeyPair keyPair = (PEMKeyPair) object;
+                    return converter.getPrivateKey(keyPair.getPrivateKeyInfo());
+                } else if (object instanceof PrivateKeyInfo) {
+                    return converter.getPrivateKey((PrivateKeyInfo) object);
+                } else {
+                    // 尝试直接转换
+                    return converter.getPrivateKey((PrivateKeyInfo) object);
                 }
-                // 从密钥库获取私钥和证书链
-                KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                kmf.init(keyStore, "juxtapose".toCharArray());
-
-                SslContextBuilder builder = SslContextBuilder.forServer(kmf);
-
-                // 如果需要验证客户端,双向加密
-                if (clientAuth != ClientAuth.NONE) {
-                    KeyStore trustStore = KeyStore.getInstance("JKS");
-                    keyStore.load((InputStream) encrypt.get("truststore"), "juxtapose".toCharArray());
-                    TrustManagerFactory tmf = TrustManagerFactory.getInstance(
-                            TrustManagerFactory.getDefaultAlgorithm());
-                    tmf.init(trustStore);
-                    builder.trustManager(tmf);
-                }
-
-                return builder.sslProvider(SslProvider.OPENSSL)
-                        .protocols(SUPPORT_PROTOCOLS)
-                        .ciphers(SUPPORT_CIPHERS)
-                        .build();
-            } else {
-                // 客户端配置
-                SslContextBuilder builder = SslContextBuilder.forClient();
-
-                // 配置信任库
-                KeyStore trustStore = KeyStore.getInstance("JKS");
-                trustStore.load((InputStream) encrypt.get("truststore"), "juxtapose".toCharArray());
-                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-                tmf.init(trustStore);
-                builder.trustManager(tmf);
-
-                // 如果配置了客户端证书（双向认证）
-                if (clientAuth != ClientAuth.NONE) {
-                    KeyStore clientKeyStore = KeyStore.getInstance("JKS");
-                    trustStore.load((InputStream) encrypt.get("clientKeystore"), "juxtapose".toCharArray());
-                    KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                    kmf.init(clientKeyStore, "juxtapose".toCharArray());
-                    builder.keyManager(kmf);
-                }
-
-                return builder
-                        .sslProvider(SslProvider.OPENSSL)
-                        .protocols(SUPPORT_PROTOCOLS)
-                        .ciphers(SUPPORT_CIPHERS)
-                        .build();
             }
         }
-
-        @Override
-        public void setName(String name) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String getName() {
-            return NAME;
-        }
-
     }
-
 
     public static void main(String[] args) throws NoSuchAlgorithmException {
         System.out.println("Supported protocols: " +

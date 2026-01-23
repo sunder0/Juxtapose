@@ -5,7 +5,7 @@ import com.sunder.juxtapose.client.ProxyServerNodeManager;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.group.ProxyNodeLatencyTest;
 import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
-import com.sunder.juxtapose.common.BaseComponent;
+import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentException;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
@@ -53,7 +53,7 @@ import java.util.function.Consumer;
  * @author : sunder
  * @date : 15:38 2023/7/5
  */
-public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeManager>
+public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxyServerNodeManager>
         implements ProxyRequestSubscriber, ProxyMessageReceiver, ProxyNodeLatencyTest {
     public final static String NAME = "JUXTA_PROXY_SERVER";
 
@@ -62,16 +62,15 @@ public class JuxtaProxyRequestSubscriber extends BaseComponent<ProxyServerNodeMa
 
     private Bootstrap bootstrap;
     private final ProxyServerNodeConfig cfg;
-    private CertComponent certComponent;
+    private CertComponent<?> certComponent;
     private DefaultConnectionManager<?> connManager;
     private FixedChannelPool fixedChannelPool;
 
-    public JuxtaProxyRequestSubscriber(ProxyServerNodeConfig cfg, CertComponent certComponent,
-            ProxyServerNodeManager parent) {
+    public JuxtaProxyRequestSubscriber(ProxyServerNodeConfig cfg, ProxyServerNodeManager parent) {
         super(cfg.name, Objects.requireNonNull(parent), ComponentLifecycleListener.INSTANCE);
         this.cfg = cfg;
-        this.certComponent = certComponent;
 
+        addChildComponent(certComponent = new CertComponent<>(cfg, this));
         parent.registerProxyRequestSubscriber(this);
     }
 

@@ -42,8 +42,6 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     private final AtomicBoolean updProxying = new AtomicBoolean(false);
 
     private ProxyServerConfig proxyServerCfg;
-    // 证书信息
-    private CertComponent certComponent;
     // 延迟url测试
     private ProxyServerUrlTestVisitor urlTestVisitor;
     // 直连服务节点, NAME -> ProxyRequestSubscriber
@@ -64,9 +62,6 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     protected void initInternal() {
         ConfigManager<?> configManager = getConfigManager();
         configManager.registerConfig((proxyServerCfg = new ProxyServerConfig(configManager)));
-
-        // 添加证书订阅
-        addChildComponent(certComponent = new CertComponent(this));
 
         // 添加代理订阅
         addChildComponent(new DirectForwardingSubscriber(0, this));
@@ -196,9 +191,9 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     private void loadProxySubscribers() {
         for (ProxyServerNodeConfig node : proxyServerCfg.getProxyNodeConfigs()) {
             if (node.type == ProxyProtocol.JUXTA) {
-                addChildComponent(new JuxtaProxyRequestSubscriber(node, certComponent, this));
+                addChildComponent(new JuxtaProxyRequestSubscriber(node, this));
             } else if (node.type == ProxyProtocol.HTTP) {
-                addChildComponent(new HttpProxyRequestSubscriber(node, certComponent, this));
+                addChildComponent(new HttpProxyRequestSubscriber(node, this));
             }
         }
 
