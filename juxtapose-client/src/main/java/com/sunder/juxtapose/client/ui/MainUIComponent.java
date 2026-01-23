@@ -175,6 +175,9 @@ public class MainUIComponent extends BaseComponent<ProxyCoreComponent> {
                     if (response == ButtonType.OK) {
                         boolean close = ((CheckBox) ((VBox) alert.getDialogPane().getContent()).getChildren()
                                 .get(0)).isSelected();
+                        if (!close) {
+                            cac.getSystemProxySetting().disableSystemProxy();
+                        }
                         systemTray.minimizeToTray(!close);
                     }
                 });
