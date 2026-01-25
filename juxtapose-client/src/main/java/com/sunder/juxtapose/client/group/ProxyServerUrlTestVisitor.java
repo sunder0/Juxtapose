@@ -21,13 +21,14 @@ import org.slf4j.LoggerFactory;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 /**
  * @author : sunder
  * @date : 17:44 2025/12/23
- *         为proxy node提供url-test延迟测试增强
+ * 为proxy node提供url-test延迟测试增强
  */
 public class ProxyServerUrlTestVisitor {
     // 最大容许延迟5s，超过视作超时
@@ -47,59 +48,74 @@ public class ProxyServerUrlTestVisitor {
      * @param subscriber 订阅节点
      * @return 延迟（ms）
      */
-    public long testUrl(ProxyRequestSubscriber subscriber) {
+    public CompletableFuture<Long> testUrl(ProxyRequestSubscriber subscriber) {
         Pair<String, Integer> hostInfo = parseHostInfoFromURL(ccfg.getLatencyUrl());
         if (hostInfo.getKey() == null || hostInfo.getValue() == null) {
             logger.error("Invalid latency url, cannot parse host and port. url[{}]", ccfg.getLatencyUrl());
-            return LATENCY_TIMEOUT_MS;
+            throw new IllegalArgumentException("Invalid latency url!");
         }
 
         ProxyRequest request = new ProxyRequest(hostInfo.getKey(), hostInfo.getValue(), new EmbeddedChannel());
-        Connection connection = null;
-        CompletableFuture<Connection> connectionReady = new CompletableFuture<>();
-        ConnectionStateListener readyListener = (conn, oldState, newState) -> {
+
+        CompletableFuture<Long> result = waitForConnectionReady(request, subscriber)
+                .thenCompose(conn -> measurePingAfterHttpRequest(subscriber, conn, request));
+        return withTimeout(result, 10, TimeUnit.SECONDS, LATENCY_TIMEOUT_MS);
+    }
+
+    /**
+     * 建立连接
+     *
+     * @param request    代理请求
+     * @param subscriber 订阅节点
+     * @return
+     */
+    private CompletableFuture<Connection> waitForConnectionReady(ProxyRequest request, ProxyRequestSubscriber subscriber) {
+        CompletableFuture<Connection> future = new CompletableFuture<>();
+
+        ConnectionStateListener listener = (conn, oldState, newState) -> {
             if (newState == ConnectionState.READY) {
-                connectionReady.complete(conn);
+                future.complete(conn);
             }
         };
 
-        try {
-            // 订阅请求并获取连接
-            connection = subscriber.subscribe(request);
-            // 等待连接就绪
-            connection.addConnectionStateListener(readyListener);
-            connectionReady.get(10, TimeUnit.SECONDS);
+        // 订阅请求并获取连接
+        Connection connection = subscriber.subscribe(request);
+        connection.addConnectionStateListener(listener);
+        // 移除监听器，避免内存泄漏
+        future.whenComplete((conn, ex) -> {
+            connection.removeConnectionStateListener(listener);
+        });
 
-            // 等待测试url返回
-            long ping = System.currentTimeMillis();
-            CompletableFuture<Long> pong = new CompletableFuture<>();
-            ConnectionStateListener activeListener = (conn, oldState, newState) -> {
-                if (newState == ConnectionState.ACTIVE) {
-                    pong.complete(System.currentTimeMillis());
-                }
-            };
-            connection.addConnectionStateListener(activeListener);
+        return future;
+    }
 
-            // 构建并发送HTTP请求
-            sendHttpRequest(subscriber, connection, request);
-            return pong.get(10 * 1000, TimeUnit.MILLISECONDS) - ping;
-        } catch (TimeoutException ex) {
-            logger.error("Latency url test timeout, proxy[{}], protocol[{}].", subscriber.proxyUri(),
-                    subscriber.proxyProtocol(), ex);
-            return LATENCY_TIMEOUT_MS;
-        } catch (Exception ex) {
-            logger.error("Latency url test failed, proxy[{}], protocol[{}].", subscriber.proxyUri(),
-                    subscriber.proxyProtocol(), ex);
-            return LATENCY_TIMEOUT_MS;
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.close();
-                } catch (Exception closeEx) {
-                    logger.warn("Failed to close connection, proxy[{}].", subscriber.proxyUri(), closeEx);
-                }
+    /**
+     * 测量延迟
+     *
+     * @param subscriber 订阅几点
+     * @param connection 连接
+     * @param request    代理请求
+     * @return
+     */
+    private CompletableFuture<Long> measurePingAfterHttpRequest(ProxyRequestSubscriber subscriber, Connection connection, ProxyRequest request) {
+        long ping = System.currentTimeMillis();
+        CompletableFuture<Long> future = new CompletableFuture<>();
+
+        ConnectionStateListener activeListener = (conn, oldState, newState) -> {
+            if (newState == ConnectionState.ACTIVE) {
+                future.complete(System.currentTimeMillis() - ping);
             }
-        }
+        };
+        connection.addConnectionStateListener(activeListener);
+        // 移除监听器，避免内存泄漏
+        future.whenComplete((conn, ex) -> {
+            connection.removeConnectionStateListener(activeListener);
+            connection.close();
+        });
+
+        sendHttpRequest(subscriber, connection, request);
+
+        return future;
     }
 
     /**
@@ -156,5 +172,31 @@ public class ProxyServerUrlTestVisitor {
         }
 
         return new Pair<>(uri.getHost(), uri.getPort() == -1 ? url.contains("https") ? 443 : 80 : uri.getPort());
+    }
+
+    /**
+     * 自定义超时， 在规定timeout没有完成则返回defaultValue， 否则返回future
+     *
+     * @param future       需要指定超时的future
+     * @param timeout      超时时间
+     * @param unit         超时单位
+     * @param defaultValue 超时返回的值
+     * @param <T>
+     * @return 在规定timeout没有完成则返回defaultValue， 否则返回future
+     */
+    public static <T> CompletableFuture<T> withTimeout(CompletableFuture<T> future, long timeout, TimeUnit unit, T defaultValue) {
+        // 创建一个超时Future
+        CompletableFuture<T> timeoutFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                Thread.sleep(unit.toMillis(timeout));
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new CompletionException(ex);
+            }
+            return defaultValue;
+        });
+
+        // 返回最先完成的结果
+        return future.applyToEither(timeoutFuture, Function.identity());
     }
 }

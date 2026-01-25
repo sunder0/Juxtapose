@@ -1,5 +1,12 @@
 proxies:
-  - name: testnode1
+  - name: 洛杉矶
+    server: 127.0.0.1
+    port: 443
+    tls: true
+    type: JUXTA
+    username: root
+    password: root
+  - name: 香港
     server: 127.0.0.1
     port: 443
     tls: true
@@ -10,5 +17,6 @@ proxies:
 proxy-groups:
   - name: Default
     proxies:
-      - testnode1
+      - 洛杉矶
+      - 香港
     type: select

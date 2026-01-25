@@ -45,6 +45,7 @@ import io.netty.util.ReferenceCountUtil;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -112,7 +113,7 @@ public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxySer
 
     @Override
     protected void startInternal() {
-        cfg.latency = testLatency();
+        testLatency();
     }
 
     @Override
@@ -165,9 +166,11 @@ public class JuxtaProxyRequestSubscriber extends BaseCompositeComponent<ProxySer
     }
 
     @Override
-    public long testLatency() {
+    public CompletableFuture<Long> testLatency() {
         ProxyServerUrlTestVisitor urlTestVisitor = parent.getUrlLatencyTestSupport();
-        return urlTestVisitor.testUrl(this);
+
+        CompletableFuture<Long> result = urlTestVisitor.testUrl(this);
+        return result.whenComplete((latency, ex) -> cfg.latency = latency);
     }
 
     /**

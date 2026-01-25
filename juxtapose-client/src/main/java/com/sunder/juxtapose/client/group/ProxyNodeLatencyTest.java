@@ -1,5 +1,7 @@
 package com.sunder.juxtapose.client.group;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * @author : sunder
  * @date : 16:42 2025/12/24
@@ -11,6 +13,6 @@ public interface ProxyNodeLatencyTest {
      *
      * @return 延迟（ms）
      */
-    long testLatency();
+    CompletableFuture<Long> testLatency();
 
 }

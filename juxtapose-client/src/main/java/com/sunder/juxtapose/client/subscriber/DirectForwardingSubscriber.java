@@ -113,7 +113,7 @@ public class DirectForwardingSubscriber extends BaseComponent<ProxyServerNodeMan
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            logger.error("Direct proxy channel encountered an error[{}].", cause.getMessage(), cause);
+            logger.error("Direct proxy channel encountered an error[{}].", cause.getMessage());
             connection.closeForce();
         }
     }

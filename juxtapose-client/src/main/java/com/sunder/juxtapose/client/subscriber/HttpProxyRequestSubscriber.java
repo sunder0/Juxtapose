@@ -43,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Deque;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
@@ -106,7 +107,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
     @Override
     protected void startInternal() {
         // 第一次启动测试下延迟
-        cfg.latency = testLatency();
+        testLatency();
     }
 
     @Override
@@ -162,7 +163,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
     }
 
     @Override
-    public long testLatency() {
+    public CompletableFuture<Long> testLatency() {
         ProxyServerUrlTestVisitor urlTestVisitor = parent.getUrlLatencyTestSupport();
         return urlTestVisitor.testUrl(this);
     }

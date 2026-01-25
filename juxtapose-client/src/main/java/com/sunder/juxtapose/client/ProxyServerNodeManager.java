@@ -77,7 +77,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     protected void startInternal() {
         super.startInternal();
 
-        // 给每个组默认选择一个延迟最低的节点
+        // 给每个组默认选择一个延迟最低（可能是）的节点
         defaultSelectLowestLatencyNode();
     }
 
@@ -228,7 +228,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
     }
 
     /**
-     * 默认初始化选择延迟最低的节点
+     * 默认初始化选择延迟最低的节点， 不一定能选到最低的延迟节点，延迟节点测试是异步
      */
     private void defaultSelectLowestLatencyNode() {
         ClientApplicationContext cac = ((ClientApplicationContext) context);

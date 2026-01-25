@@ -10,11 +10,6 @@ import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeGroupConfig;
 import com.sunder.juxtapose.client.group.ProxyGroupType;
 import com.sunder.juxtapose.client.ui.MainUIComponent;
-import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
-import static com.sunder.juxtapose.client.ui.UIUtils.createSettingSection;
-import static com.sunder.juxtapose.client.ui.UIUtils.showAlert;
-import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
-import static com.sunder.juxtapose.client.ui.UIUtils.styleTextField;
 import com.sunder.juxtapose.common.BaseModule;
 import com.sunder.juxtapose.common.Constants;
 import com.sunder.juxtapose.common.ProxyMode;
@@ -45,7 +40,7 @@ import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.Desktop;
+import java.awt.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -53,6 +48,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
+import static com.sunder.juxtapose.client.ui.UIUtils.createSettingSection;
+import static com.sunder.juxtapose.client.ui.UIUtils.showAlert;
+import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
+import static com.sunder.juxtapose.client.ui.UIUtils.styleTextField;
 
 /**
  * @author : sunder
@@ -69,7 +70,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
     // Proxies相关组件
     private ListView<ProxyGroup> groupListView;
     private ObservableList<ProxyGroup> groups = FXCollections.observableArrayList();
-    private Map<String, ObservableList<ProxyNode>> proxyNodesMap = new HashMap<>();
+    private Map<String, ObservableList<ProxyServerNodeConfig>> proxyNodesMap = new HashMap<>();
     private Map<String, String> selectedNodeMap; // 存储每个分组选中的节点
     private Map<String, Boolean> groupExpandedMap = new HashMap<>(); // 存储每个分组的展开状态
 
@@ -127,8 +128,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
                     continue;
                 }
 
-                proxyNodesMap.get(group.name).add(new ProxyNode(nodeConfig.name, nodeConfig.type.name(),
-                        nodeConfig.latency + "ms"));
+                proxyNodesMap.get(group.name).add(nodeConfig);
             }
         }
         this.selectedNodeMap = context.getSelectNodes();
@@ -196,12 +196,6 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
         proxySettings.getChildren().addAll(
                 createDirectorySettingRow("Profiles:", "Open File", pscfg.getConfigDirectory()),
                 createDirectorySettingRow("Proxy Rules:", "Open File", prcfg.getConfigDirectory())
-                // createEditableValueRow("Update Interval:", "3600", new Consumer<String>() {
-                //     @Override
-                //     public void accept(String s) {
-                //
-                //     }
-                // })
         );
 
         mainPane.getChildren().addAll(toolbar, proxyGroupsSection, proxySettings);
@@ -315,7 +309,6 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
     private void clearAllProxyData() {
         groups.clear();
         proxyNodesMap.clear();
-       // selectedNodeMap.clear();
         groupExpandedMap.clear();
     }
 
@@ -505,14 +498,14 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
         // 加载并显示节点
         private void loadProxyNodes(String groupName) {
             nodesContainer.getChildren().clear();
-            ObservableList<ProxyNode> nodes = proxyNodesMap.get(groupName);
+            ObservableList<ProxyServerNodeConfig> nodes = proxyNodesMap.get(groupName);
 
             // 创建节点并每行显示两个
             HBox currentRow = new HBox(8);
             currentRow.setSpacing(8);
 
             for (int i = 0; i < nodes.size(); i++) {
-                ProxyNode node = nodes.get(i);
+                ProxyServerNodeConfig node = nodes.get(i);
                 ProxyNodeBlock block = new ProxyNodeBlock(node, currentGroup);
 
                 // 设置每个节点占据一半宽度
@@ -582,18 +575,18 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
     // 代理节点块状组件
     private class ProxyNodeBlock extends BorderPane {
-        private ProxyNode node;
+        private ProxyServerNodeConfig node;
         private boolean isSelected;
         private ProxyGroup group;
 
-        public ProxyNodeBlock(ProxyNode node, ProxyGroup group) {
+        public ProxyNodeBlock(ProxyServerNodeConfig node, ProxyGroup group) {
             this.node = node;
             this.group = group;
             this.isSelected = false;
 
             // 检查是否是已选中的节点
             String selectedNode = selectedNodeMap.get(group.getName());
-            if (selectedNode != null && selectedNode.equals(node.getName())) {
+            if (selectedNode != null && selectedNode.equals(node.name)) {
                 this.isSelected = true;
             }
 
@@ -625,7 +618,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             updateSelectedStyle();
 
             // 节点名称
-            Label nameLabel = new Label(node.getName());
+            Label nameLabel = new Label(node.name);
             nameLabel.setFont(Font.font("Segoe UI", 13));
             nameLabel.setTextFill(Color.rgb(33, 37, 41));
             nameLabel.setStyle("-fx-font-weight: 500;");
@@ -636,7 +629,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             bottomContent.setSpacing(10);
 
             // 左侧放置type（左下角）
-            Label typeLabel = new Label("Type: " + node.getType());
+            Label typeLabel = new Label("Type: " + node.type);
             typeLabel.setFont(Font.font("Segoe UI", 11));
             typeLabel.setTextFill(Color.rgb(73, 80, 87));
             typeLabel.setAlignment(Pos.CENTER_LEFT);
@@ -646,16 +639,14 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             HBox.setHgrow(spacer, Priority.ALWAYS);
 
             // 右侧放置latency（右下角）
-            Label latencyLabel = new Label("Latency: " + node.getLatency());
+            Label latencyLabel = new Label("Latency: " + node.latency + "ms");
             latencyLabel.setFont(Font.font("Segoe UI", 11));
 
             // 根据延迟设置颜色
             try {
-                String latencyStr = node.getLatency().replace("ms", "").trim();
-                int latency = Integer.parseInt(latencyStr);
-                if (latency < 2000) {
+                if (node.latency < 2000) {
                     latencyLabel.setTextFill(Color.rgb(76, 175, 80)); // 绿色
-                } else if (latency < 5000) {
+                } else if (node.latency < 5000) {
                     latencyLabel.setTextFill(Color.rgb(255, 152, 0)); // 橙色
                 } else {
                     latencyLabel.setText("Timeout");
@@ -728,7 +719,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
             // 更新选中状态
             isSelected = true;
-            selectedNodeMap.put(group.getName(), node.getName());
+            selectedNodeMap.put(group.getName(), node.name);
             context.addSelectNode(group.name, node.name);
 
             // 刷新列表以更新其他节点的选中状态
@@ -762,7 +753,7 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             return isSelected;
         }
 
-        public ProxyNode getNode() {
+        public ProxyServerNodeConfig getNode() {
             return node;
         }
     }

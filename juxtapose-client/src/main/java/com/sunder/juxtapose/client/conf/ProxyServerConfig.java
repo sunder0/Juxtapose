@@ -7,10 +7,10 @@ import cn.hutool.core.lang.Dict;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.setting.yaml.YamlUtil;
 import com.sunder.juxtapose.client.group.ProxyGroupType;
+import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
 import com.sunder.juxtapose.common.BaseConfig;
 import com.sunder.juxtapose.common.ConfigException;
 import com.sunder.juxtapose.common.ConfigManager;
-import static com.sunder.juxtapose.common.Constants.GLOBAL_NAME;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 import com.sunder.juxtapose.common.ProxyProtocol;
 
@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static com.sunder.juxtapose.common.Constants.GLOBAL_NAME;
 
 /**
  * @author : sunder
@@ -156,7 +158,7 @@ public class ProxyServerConfig extends BaseConfig {
         public String server;
         public Integer port;
 
-        public long latency = 0L; // 节点延迟
+        public long latency = ProxyServerUrlTestVisitor.LATENCY_TIMEOUT_MS; // 节点延迟， 默认超时
 
         @Override
         public boolean equals(Object object) {
