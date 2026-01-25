@@ -1,10 +1,12 @@
 package com.sunder.juxtapose.common.encrypt;
 
 import com.sunder.juxtapose.common.Named;
+import com.sunder.juxtapose.common.Platform;
 import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
+import io.netty.util.internal.PlatformDependent;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMKeyPair;
@@ -21,32 +23,32 @@ import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.net.ssl.SSLContext;
 
 /**
  * @author : sunder
  * @date : 22:56 2025/07/30
  */
 public class SslEncryptProvider {
-    private final static List<String> SUPPORT_PROTOCOLS = Arrays.asList("TLSv1.3", "TLSv1.2");
-
-    private final static List<String> SUPPORT_CIPHERS = Arrays.asList(
-            // TLS 1.3 强套件
-            "TLS_AES_256_GCM_SHA384",
-            "TLS_AES_128_GCM_SHA256",
-
-            // TLS 1.2 强套件
-            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
-    );
+    private final static List<String> SUPPORT_PROTOCOLS = new ArrayList<>();
+    private final static List<String> SUPPORT_CIPHERS = new ArrayList<>();
     private final static Map<String, SslEncryptor> encryptors = new HashMap<>(16);
 
     static {
+        SUPPORT_PROTOCOLS.add("TLSv1.2");
+        SUPPORT_CIPHERS.add("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384");
+        SUPPORT_CIPHERS.add("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
+
+        // jdk1.8.0_333开始生产可用TLS1.3
+        if (!Platform.isBeforeJDK8u333()) {
+            SUPPORT_PROTOCOLS.add("TLSv1.3");
+            SUPPORT_CIPHERS.add("TLS_AES_256_GCM_SHA384");
+            SUPPORT_CIPHERS.add("TLS_AES_128_GCM_SHA256");
+        }
         encryptors.put(PEMSslEncryptor.NAME, new PEMSslEncryptor());
     }
 
@@ -166,7 +168,9 @@ public class SslEncryptProvider {
     }
 
     public static void main(String[] args) throws NoSuchAlgorithmException {
-        System.out.println("Supported protocols: " +
-                String.join(", ", SSLContext.getDefault().getSupportedSSLParameters().getProtocols()));
+//        System.out.println("Supported protocols: " +
+//                String.join(", ", SSLContext.getDefault().getSupportedSSLParameters().getProtocols()));
+        System.out.println(PlatformDependent.javaVersion());
+        System.out.println(System.getProperty("java.version"));
     }
 }

@@ -19,13 +19,14 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.internal.PlatformDependent;
+import io.netty.util.internal.SystemPropertyUtil;
 
 import java.util.concurrent.ThreadFactory;
 
 /**
  * @author : sunder
  * @date : 00:22 2025/07/11
- *         平台相关接口
+ * 平台相关接口
  */
 public interface Platform {
 
@@ -142,6 +143,62 @@ public interface Platform {
         }
 
         return new NioEventLoopGroup(nThreads, threadFactory);
+    }
+
+
+    /**
+     * 检查是否是 JDK 8u333 之前的版本
+     */
+    static boolean isBeforeJDK8u333() {
+        String version = SystemPropertyUtil.get("java.version");
+        if (version == null) {
+            return true; // 保守估计，认为是旧版本
+        }
+
+        // 处理不同格式的版本字符串
+        version = version.toLowerCase();
+        try {
+            int majorVersion;
+            int updateVersion = 0;
+
+            if (version.startsWith("1.8.")) {
+                // Oracle JDK 格式: 1.8.0_333
+                majorVersion = 8;
+                int underscoreIndex = version.indexOf('_');
+                if (underscoreIndex != -1) {
+                    String updateStr = version.substring(underscoreIndex + 1);
+                    // 移除可能的后缀如 -b10
+                    if (updateStr.contains("-")) {
+                        updateStr = updateStr.split("-")[0];
+                    }
+                    updateVersion = Integer.parseInt(updateStr);
+                }
+            } else if (version.startsWith("8u")) {
+                // OpenJDK 格式: 8u333
+                majorVersion = 8;
+                String updateStr = version.substring(2);
+                // 移除可能的后缀
+                if (updateStr.contains("-")) {
+                    updateStr = updateStr.split("-")[0];
+                }
+                updateVersion = Integer.parseInt(updateStr);
+            } else if (version.startsWith("8.")) {
+                // 其他格式: 8.0.333
+                majorVersion = 8;
+                String[] parts = version.split("\\.");
+                if (parts.length >= 3) {
+                    updateVersion = Integer.parseInt(parts[2]);
+                }
+            } else {
+                // 不是 JDK 8
+                return false;
+            }
+
+            return updateVersion < 333;
+        } catch (Exception ex) {
+            // 解析失败，保守估计为旧版本
+            return true;
+        }
     }
 
 }
