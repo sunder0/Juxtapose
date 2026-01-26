@@ -1,7 +1,9 @@
 # Juxtapose
 Juxtapose是一款持续迭代中的代理（proxy）软件，主要技术为Netty+JavaFx，支持Windows和MacOs运行，目前主要协议支持HTTP和Socks5。界面如图：
 
-![ui](ui.png)
+![ui](img/ui_1.png)
+
+![ui2](img/ui_2.png)
 
 ## 架构
 ![juxta architecture diagram](https://suyeq.oss-cn-shenzhen.aliyuncs.com/juxta/Juxta%E6%9E%B6%E6%9E%84.png)
@@ -69,10 +71,10 @@ sh startup_server.sh
 备注: 代理服务端机器推荐启用TCP BBR提高吞吐量，centos7可以参照此链接 https://www.cnblogs.com/1399z3blog/p/17605797.html, 开启前后对比（测试机器为1核/1G内存/1Gbps带宽/厂商RackNerd）:
 
 开启前:
-![bbr_before](./test/bbr_before.png)
+![bbr_before](img/bbr_before.png)
 
 开启后:
-![bbr_after](./test/bbr_after.png)
+![bbr_after](img/bbr_after.png)
 
 其他相关服务器购买准备事宜可以参照左耳朵大神的文章：https://github.com/haoel/haoel.github.io
 

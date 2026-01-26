@@ -87,8 +87,6 @@ public abstract class CachedChannelPool implements ChannelPool {
             // 每5秒检查一次空闲连接
             idleCleaner.scheduleAtFixedRate(() -> {
                 try {
-                    System.out.println("total: " + totalCount.get() + ", idle: " + idleCount.get() + ", activity:"
-                            + activeCount.get());
                     cleanIdleChannels();
                 } catch (Exception ex) {
                     logger.error("Error cleaning idle channels", ex);
