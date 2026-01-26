@@ -4,6 +4,7 @@ import com.sunder.juxtapose.client.system.SystemProxySettingAdapter;
 import com.sunder.juxtapose.common.ApplicationContext;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -60,6 +61,10 @@ public class ClientApplicationContext implements ApplicationContext {
 
     public void refreshProxySubscribers() {
         proxyNodeManager.refreshProxySubscribers();
+    }
+
+    public CompletableFuture<Long> testLatency(String name) {
+        return proxyNodeManager.testLatency(name);
     }
 
     public void registerProxyNodeManager(ProxyServerNodeManager proxyNodeManager) {

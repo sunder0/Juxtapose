@@ -10,6 +10,11 @@ import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeConfig;
 import com.sunder.juxtapose.client.conf.ProxyServerConfig.ProxyServerNodeGroupConfig;
 import com.sunder.juxtapose.client.group.ProxyGroupType;
 import com.sunder.juxtapose.client.ui.MainUIComponent;
+import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
+import static com.sunder.juxtapose.client.ui.UIUtils.createSettingSection;
+import static com.sunder.juxtapose.client.ui.UIUtils.showAlert;
+import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
+import static com.sunder.juxtapose.client.ui.UIUtils.styleTextField;
 import com.sunder.juxtapose.common.BaseModule;
 import com.sunder.juxtapose.common.Constants;
 import com.sunder.juxtapose.common.ProxyMode;
@@ -17,6 +22,7 @@ import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -40,20 +46,15 @@ import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
+import java.awt.Desktop;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import static com.sunder.juxtapose.client.ui.UIUtils.createPanelContainer;
-import static com.sunder.juxtapose.client.ui.UIUtils.createSettingSection;
-import static com.sunder.juxtapose.client.ui.UIUtils.showAlert;
-import static com.sunder.juxtapose.client.ui.UIUtils.styleButton;
-import static com.sunder.juxtapose.client.ui.UIUtils.styleTextField;
 
 /**
  * @author : sunder
@@ -641,20 +642,19 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
             // 右侧放置latency（右下角）
             Label latencyLabel = new Label("Latency: " + node.latency + "ms");
             latencyLabel.setFont(Font.font("Segoe UI", 11));
-
-            // 根据延迟设置颜色
-            try {
-                if (node.latency < 2000) {
-                    latencyLabel.setTextFill(Color.rgb(76, 175, 80)); // 绿色
-                } else if (node.latency < 5000) {
-                    latencyLabel.setTextFill(Color.rgb(255, 152, 0)); // 橙色
-                } else {
-                    latencyLabel.setText("Timeout");
-                    latencyLabel.setTextFill(Color.rgb(244, 67, 54)); // 红色
-                }
-            } catch (NumberFormatException e) {
+            latencyLabel.setOnMouseClicked(e -> {
+                latencyLabel.setText("Latency: --" + "ms");
                 latencyLabel.setTextFill(Color.rgb(73, 80, 87));
-            }
+
+                CompletableFuture<Long> future = context.testLatency(node.name);
+                future.whenComplete((latency, ex) -> {
+                    node.latency = latency;
+                    Platform.runLater(() -> updateLatencyLabelStyle(node.latency, latencyLabel));
+                });
+                e.consume();
+            });
+            // 根据延迟设置颜色
+            updateLatencyLabelStyle(node.latency, latencyLabel);
 
             bottomContent.getChildren().addAll(typeLabel, spacer, latencyLabel);
 
@@ -703,6 +703,25 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
                 });
             }
 
+        }
+
+        // 根据延迟设定延迟标签风格
+        private void updateLatencyLabelStyle(long latency, Label latencyLabel) {
+            // 根据延迟设置颜色
+            try {
+                if (latency < 2000) {
+                    latencyLabel.setText("Latency: " + latency + "ms");
+                    latencyLabel.setTextFill(Color.rgb(76, 175, 80)); // 绿色
+                } else if (latency < 5000) {
+                    latencyLabel.setText("Latency: " + latency + "ms");
+                    latencyLabel.setTextFill(Color.rgb(255, 152, 0)); // 橙色
+                } else {
+                    latencyLabel.setText("Timeout");
+                    latencyLabel.setTextFill(Color.rgb(244, 67, 54)); // 红色
+                }
+            } catch (NumberFormatException e) {
+                latencyLabel.setTextFill(Color.rgb(73, 80, 87));
+            }
         }
 
         // 选中节点

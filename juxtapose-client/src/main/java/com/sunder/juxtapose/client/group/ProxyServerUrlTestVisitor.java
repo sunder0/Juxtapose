@@ -72,6 +72,7 @@ public class ProxyServerUrlTestVisitor {
     private CompletableFuture<Connection> waitForConnectionReady(ProxyRequest request, ProxyRequestSubscriber subscriber) {
         CompletableFuture<Connection> future = new CompletableFuture<>();
 
+        // ready状态表明建立连接后且已激活专属通道
         ConnectionStateListener listener = (conn, oldState, newState) -> {
             if (newState == ConnectionState.READY) {
                 future.complete(conn);
@@ -80,6 +81,11 @@ public class ProxyServerUrlTestVisitor {
 
         // 订阅请求并获取连接
         Connection connection = subscriber.subscribe(request);
+        // 有可能是复用的通道，那么立马返回完成
+        if (connection.getState() == ConnectionState.READY) {
+            future.complete(connection);
+        }
+
         connection.addConnectionStateListener(listener);
         // 移除监听器，避免内存泄漏
         future.whenComplete((conn, ex) -> {

@@ -10,6 +10,7 @@ import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy.LoadBalanc
 import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy.SelectStrategy;
 import com.sunder.juxtapose.client.group.ProxyGroupNodeSelectStrategy.URLTestStrategy;
 import com.sunder.juxtapose.client.group.ProxyGroupType;
+import com.sunder.juxtapose.client.group.ProxyNodeLatencyTest;
 import com.sunder.juxtapose.client.group.ProxyServerUrlTestVisitor;
 import com.sunder.juxtapose.client.subscriber.DirectForwardingSubscriber;
 import com.sunder.juxtapose.client.subscriber.HttpProxyRequestSubscriber;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -106,6 +108,7 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
         }
 
         if (!proxyGroups.containsKey(groupName)) {
+            request.close();
             throw new RuntimeException("Proxy group is not exist.");
         }
 
@@ -118,9 +121,6 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
 
         return group.strategy.select(request);
     }
-
-    // todo: 检测代理节点是否存活。。
-
 
     /**
      * 添加一个代理节点
@@ -174,6 +174,21 @@ public class ProxyServerNodeManager extends BaseCompositeComponent<ProxyCoreComp
 
             updProxying.set(false);
         }
+    }
+
+    /**
+     * 测试节点延迟
+     *
+     * @param name 代理节点名称
+     * @return 延迟（ms）
+     */
+    public CompletableFuture<Long> testLatency(String name) {
+        ProxyRequestSubscriber subscriber = proxyNodes.get(name);
+        if (subscriber == null) {
+            throw new UnsupportedOperationException("Proxy node is not exist!");
+        }
+
+        return ((ProxyNodeLatencyTest) subscriber).testLatency();
     }
 
     /**
