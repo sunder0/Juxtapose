@@ -165,7 +165,8 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
     @Override
     public CompletableFuture<Long> testLatency() {
         ProxyServerUrlTestVisitor urlTestVisitor = parent.getUrlLatencyTestSupport();
-        return urlTestVisitor.testUrl(this);
+        CompletableFuture<Long> result = urlTestVisitor.testUrl(this);
+        return result.whenComplete((latency, ex) -> cfg.latency = latency);
     }
 
     /**
