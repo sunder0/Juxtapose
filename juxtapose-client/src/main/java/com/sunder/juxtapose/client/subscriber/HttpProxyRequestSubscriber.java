@@ -99,7 +99,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
         this.bootstrap = bootstrap;
 
         this.connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
-        this.cachedChannelPool = new HttpCachedChannelPool(bootstrap, 60 * 1_000L);
+        //this.cachedChannelPool = new HttpCachedChannelPool(bootstrap, 60 * 1_000L);
 
         super.initInternal();
     }
@@ -219,8 +219,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
                 HttpResponse response = (HttpResponse) msg;
                 if (response.status() == HttpResponseStatus.UNAUTHORIZED) {
                     logger.error("Http proxy server auth fail.");
-                    connection.closeForce().addListener(
-                            (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
+                    connection.closeForce();
                     connManager.unregisterTrafficHandler(ctx.channel());
                 }
 
@@ -242,8 +241,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error("Http(s) proxy channel encountered an error[{}].", cause.getMessage(), cause);
-            connection.closeForce().addListener(
-                    (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
+            connection.closeForce();
             connManager.unregisterTrafficHandler(ctx.channel());
         }
 
@@ -282,8 +280,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
             logger.error("Http(s) proxy channel close an error[{}].", ctx.channel().id());
             // todo：通知关闭代理服务端对应连接
-            connection.closeForce().addListener(
-                    (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
+            connection.closeForce();
             connManager.unregisterTrafficHandler(ctx.channel());
         }
 
@@ -363,8 +360,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             logger.error("Http(s) proxy channel encountered an error[{}].", cause.getMessage(), cause);
-            connection.closeForce().addListener(
-                    (ChannelFutureListener) cf -> cachedChannelPool.release(ctx.channel()));
+            connection.closeForce();
         }
     }
 
