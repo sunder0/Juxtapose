@@ -37,7 +37,7 @@ public class ProxyRuleEngine extends BaseComponent<ProxyCoreComponent> {
         ConfigManager<?> configManager = getConfigManager();
         ClientConfig ccfg = configManager.getConfigByName(ClientConfig.NAME, ClientConfig.class);
         try {
-            this.GEOIPDB = new GeoIPDatabase(ccfg.getGeoIPPath());
+            this.GEOIPDB = new GeoIPDatabase(ccfg);
         } catch (Exception ex) {
             throw new ComponentException("Init GEOIP DB failed.", ex);
         }
