@@ -68,7 +68,7 @@ public class GeoIPDatabase {
             File destFile = new File(resource.getResource().getUrl().getPath());
             HttpUtil.downloadFile(mmdbUrl, destFile, new GeoIpDownloadProgress(ccfg.getGeoIPUrl()));
 
-            if (destFile.exists() && isGeoFileSame(ccfg.getGeoIPPath(), destFile)) {
+            if (destFile.exists() && !isGeoFileSame(ccfg.getGeoIPPath(), destFile)) {
                 FileUtil.rename(destFile, ccfg.getGeoIPPath(), true);
 
                 this.geoIPReader.close();
