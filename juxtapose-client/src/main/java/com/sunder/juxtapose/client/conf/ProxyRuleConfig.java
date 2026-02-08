@@ -2,15 +2,19 @@ package com.sunder.juxtapose.client.conf;
 
 import cn.hutool.core.io.resource.FileResource;
 import cn.hutool.core.io.resource.Resource;
+import cn.hutool.core.lang.Dict;
 import cn.hutool.core.thread.ThreadFactoryBuilder;
 import cn.hutool.setting.yaml.YamlUtil;
 import com.sunder.juxtapose.common.BaseConfig;
+import com.sunder.juxtapose.common.ConfigException;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.MultiProtocolResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.InputStream;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -64,7 +68,27 @@ public class ProxyRuleConfig extends BaseConfig {
 
     @Override
     public void save() {
-        // todo:...
+        MultiProtocolResource resource = new MultiProtocolResource(PROXY_RULE_CONFIG_FILE, true);
+        try {
+            YamlUtil.dump(config, new FileWriter(resource.getResource().getUrl().getPath()));
+        } catch (Exception ex) {
+            throw new ConfigException("save proxy rule config error.", ex);
+        }
+    }
+
+    /**
+     * 从yaml文件中加载
+     *
+     * @param yaml yaml文件输入流
+     */
+    public void loadYamlStream(InputStream yaml) {
+        this.config.clear();
+        this.config = YamlUtil.load(yaml, Dict.class);
+        save();
+        try {
+            yaml.close();
+        } catch (Exception ignore) {
+        }
     }
 
     @SuppressWarnings("unchecked")

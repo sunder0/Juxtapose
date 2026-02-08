@@ -27,11 +27,13 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Scene;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -41,15 +43,19 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.Desktop;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -226,8 +232,8 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
                         "-fx-cursor: hand;"
         );
 
-        // 保持原有功能
-        valueLabel.setOnMouseClicked(e -> openDirectory(directory));
+        boolean updProxies = label.contains("Profiles");
+        valueLabel.setOnMouseClicked(e -> openDirectory(directory, updProxies));
 
         row.getChildren().addAll(nameLabel, valueLabel);
         return row;
@@ -242,12 +248,8 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
         context.setProfileUrl(urlString);
         try (HttpResponse response = HttpUtil.createGet(urlString).execute()) {
-            pscfg.loadYamlStream(response.bodyStream());
-
-            // 清空现有数据
-            clearAllProxyData();
-            context.refreshProxySubscribers();
-            initializeProxyData();
+            // 重新加载
+            reloadProxies(response.bodyStream());
 
             showAlert(AlertType.INFORMATION, "Success", "Proxy configuration downloaded successfully");
             groupListView.refresh();
@@ -273,12 +275,8 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
 
         if (selectedFile != null) {
             try (FileInputStream fis = new FileInputStream(selectedFile)) {
-                pscfg.loadYamlStream(fis);
-
-                clearAllProxyData();
-                context.refreshProxySubscribers();
-                initializeProxyData();
-
+                // 重新加载
+                reloadProxies(fis);
                 showAlert(AlertType.INFORMATION, "Success",
                         "Proxy configuration imported successfully from " + selectedFile.getName());
                 groupListView.refresh();
@@ -289,21 +287,178 @@ public class ProxiesPanel extends BaseModule<MainUIComponent> {
     }
 
     // 打开目录
-    private void openDirectory(File directory) {
+    private void openDirectory(File directory, boolean updProxies) {
         try {
             if (!directory.exists()) {
                 directory.mkdirs();
             }
 
-            // 打开系统文件浏览器
-            if (Desktop.isDesktopSupported()) {
-                Desktop.getDesktop().open(directory);
-            } else {
-                showAlert(AlertType.ERROR, "Error", "Desktop is not supported on this system");
-            }
-        } catch (IOException ex) {
+            // 启用编辑器
+            showConfigEditor(directory, updProxies);
+        } catch (Exception ex) {
             showAlert(AlertType.ERROR, "Error", "Failed to open directory: " + ex.getMessage());
         }
+    }
+
+    // 显示配置文件编辑器对话框
+    private void showConfigEditor(File configFile, boolean updProxies) {
+        try {
+            String content = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
+
+            // 创建编辑对话框
+            Stage editorStage = new Stage();
+            editorStage.setTitle("Edit Configuration - " + configFile.getName());
+            editorStage.initModality(Modality.APPLICATION_MODAL);
+            editorStage.initOwner(mainPane.getScene().getWindow());
+
+            BorderPane root = new BorderPane();
+            root.setStyle("-fx-background-color: #f5f5f5;");
+
+            // 创建顶部标题栏
+            HBox titleBar = new HBox(10);
+            titleBar.setPadding(new Insets(15, 20, 15, 20));
+            titleBar.setAlignment(Pos.CENTER_LEFT);
+            titleBar.setStyle("-fx-background-color: #2196f3;");
+
+            Label titleLabel = new Label("Edit Configuration");
+            titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
+
+            Label fileLabel = new Label("File: " + configFile.getName());
+            fileLabel.setStyle("-fx-text-fill: #e3f2fd; -fx-font-size: 12px;");
+
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+
+            titleBar.getChildren().addAll(titleLabel, spacer, fileLabel);
+
+            // 创建文本编辑区域
+            TextArea editorArea = new TextArea(content);
+            editorArea.setStyle(
+                    "-fx-font-family: 'Consolas', 'Monaco', 'Courier New', monospace;" +
+                            "-fx-font-size: 12px;" +
+                            "-fx-background-color: white;" +
+                            "-fx-border-color: #e0e0e0;" +
+                            "-fx-border-width: 1px;" +
+                            "-fx-padding: 10px;"
+            );
+            editorArea.setWrapText(false);
+            editorArea.setPrefRowCount(25);
+            editorArea.setPrefColumnCount(80);
+
+            // 创建底部按钮栏
+            HBox buttonBar = new HBox(15);
+            buttonBar.setPadding(new Insets(15, 20, 15, 20));
+            buttonBar.setAlignment(Pos.CENTER_RIGHT);
+            buttonBar.setStyle("-fx-background-color: white; -fx-border-color: #e0e0e0; -fx-border-width: 1 0 0 0;");
+
+            // 取消按钮
+            Button cancelBtn = new Button("Cancel");
+            cancelBtn.setStyle(
+                    "-fx-background-color: #f5f5f5;" +
+                            "-fx-text-fill: #333333;" +
+                            "-fx-font-size: 12px;" +
+                            "-fx-padding: 8 20;" +
+                            "-fx-background-radius: 4;" +
+                            "-fx-border-color: #ddd;" +
+                            "-fx-border-radius: 4;" +
+                            "-fx-border-width: 1px;"
+            );
+            cancelBtn.setOnAction(e -> {
+                editorStage.close();
+                e.consume();
+            });
+
+            // 保存按钮
+            Button saveBtn = new Button("Save");
+            saveBtn.setStyle(
+                    "-fx-background-color: #4CAF50;" +
+                            "-fx-text-fill: white;" +
+                            "-fx-font-size: 12px;" +
+                            "-fx-padding: 8 30;" +
+                            "-fx-background-radius: 4;" +
+                            "-fx-font-weight: bold;"
+            );
+            saveBtn.setOnAction(e -> {
+                byte[] bytes = editorArea.getText().getBytes(StandardCharsets.UTF_8);
+                try (InputStream fis = new ByteArrayInputStream(bytes)) {
+                    if (updProxies) {
+                        reloadProxies(fis);
+                    } else {
+                        context.refreshProxyRules(fis);
+                    }
+                } catch (Exception ignore) {
+                    // nothing to do...
+                }
+
+                saveConfigFile(configFile, editorArea.getText());
+
+                groupListView.refresh();
+                editorStage.close();
+                e.consume();
+            });
+
+            // 添加按钮悬停效果
+            cancelBtn.setOnMouseEntered(e -> cancelBtn.setStyle(cancelBtn.getStyle() + "-fx-background-color: #e8e8e8;"));
+            cancelBtn.setOnMouseExited(e -> cancelBtn.setStyle(
+                    "-fx-background-color: #f5f5f5;" +
+                            "-fx-text-fill: #333333;" +
+                            "-fx-font-size: 12px;" +
+                            "-fx-padding: 8 20;" +
+                            "-fx-background-radius: 4;" +
+                            "-fx-border-color: #ddd;" +
+                            "-fx-border-radius: 4;" +
+                            "-fx-border-width: 1px;"
+            ));
+
+            saveBtn.setOnMouseEntered(e -> saveBtn.setStyle(saveBtn.getStyle() + "-fx-background-color: #45a049;"));
+            saveBtn.setOnMouseExited(e -> saveBtn.setStyle(
+                    "-fx-background-color: #4CAF50;" +
+                            "-fx-text-fill: white;" +
+                            "-fx-font-size: 12px;" +
+                            "-fx-padding: 8 30;" +
+                            "-fx-background-radius: 4;" +
+                            "-fx-font-weight: bold;"
+            ));
+
+            buttonBar.getChildren().addAll(cancelBtn, saveBtn);
+
+            // 组装界面
+            root.setTop(titleBar);
+            root.setCenter(editorArea);
+            root.setBottom(buttonBar);
+
+            // 创建场景并显示
+            Scene scene = new Scene(root, 500, 375);
+            editorStage.setScene(scene);
+            editorStage.setMinWidth(375);
+            editorStage.setMinHeight(250);
+
+            editorStage.showAndWait();
+        } catch (IOException ex) {
+            logger.error("Failed to read config file", ex);
+            showAlert(AlertType.ERROR, "Error", "Failed to read configuration file: " + ex.getMessage());
+        }
+    }
+
+    // 保存配置文件
+    private void saveConfigFile(File configFile, String content) {
+        try {
+            Files.write(configFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
+            showAlert(AlertType.INFORMATION, "Success", "Configuration saved successfully!");
+            logger.info("Configuration file saved: {}", configFile.getAbsolutePath());
+        } catch (IOException ex) {
+            logger.error("Failed to save config file", ex);
+            showAlert(AlertType.ERROR, "Error", "Failed to save configuration: " + ex.getMessage());
+        }
+    }
+
+    // 重新加载
+    private void reloadProxies(InputStream yamlStream) {
+        pscfg.loadYamlStream(yamlStream);
+        clearAllProxyData();
+        selectedNodeMap.clear();
+        context.refreshProxySubscribers();
+        initializeProxyData();
     }
 
     // 清空所有代理数据

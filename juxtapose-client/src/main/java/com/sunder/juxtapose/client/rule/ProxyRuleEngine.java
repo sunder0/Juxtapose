@@ -1,5 +1,6 @@
 package com.sunder.juxtapose.client.rule;
 
+import com.sunder.juxtapose.client.ClientApplicationContext;
 import com.sunder.juxtapose.client.ProxyCoreComponent;
 import com.sunder.juxtapose.client.conf.ClientConfig;
 import com.sunder.juxtapose.client.conf.ProxyRuleConfig;
@@ -14,9 +15,11 @@ import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.ConfigManager;
 import com.sunder.juxtapose.common.ProxyAction;
 
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author : sunder
@@ -25,6 +28,9 @@ import java.util.List;
 public class ProxyRuleEngine extends BaseComponent<ProxyCoreComponent> {
     public final static String NAME = "RULE_ENGINE";
 
+    private AtomicBoolean updating = new AtomicBoolean(false);
+
+    private ProxyRuleConfig prcfg;
     private GeoIPDatabase GEOIPDB;
     private final List<ProxyRule> proxyRules = new ArrayList<>();
 
@@ -42,9 +48,11 @@ public class ProxyRuleEngine extends BaseComponent<ProxyCoreComponent> {
             throw new ComponentException("Init GEOIP DB failed.", ex);
         }
 
-        ProxyRuleConfig prcfg = new ProxyRuleConfig(configManager);
+        this.prcfg = new ProxyRuleConfig(configManager);
         configManager.registerConfig(prcfg);
         prcfg.getRules().forEach(rule -> addRule(parseRule(rule, GEOIPDB)));
+
+        ((ClientApplicationContext) context).registerProxyRuleEngine(this);
     }
 
     /**
@@ -56,6 +64,11 @@ public class ProxyRuleEngine extends BaseComponent<ProxyCoreComponent> {
      * @return 返回匹配结果
      */
     public RuleResult match(String domain, InetAddress ip, int port) {
+        if (updating.get()) {
+            logger.warn("Request blocked, proxy rule update in progress.");
+            return new RuleResult(ProxyAction.REJECT, ProxyAction.REJECT.name());
+        }
+
         for (ProxyRule proxyRule : proxyRules) {
             if (proxyRule.matches(domain, ip, port)) {
                 return new RuleResult(proxyRule.proxyAction(), proxyRule.proxyGroup());
@@ -63,6 +76,23 @@ public class ProxyRuleEngine extends BaseComponent<ProxyCoreComponent> {
         }
         // 不存在不能匹配的场景，最后一个规则MATCH是一定能匹配的
         throw new RuntimeException("Proxy rule settings are incorrect, please check...");
+    }
+
+    /**
+     * 重新加载代理规则
+     *
+     * @param yaml yaml的文件流
+     */
+    public void reloadRoxyRules(InputStream yaml) {
+        boolean canUpdate = updating.compareAndSet(false, true);
+        if (canUpdate) {
+            prcfg.loadYamlStream(yaml);
+
+            proxyRules.clear();
+            prcfg.getRules().forEach(rule -> addRule(parseRule(rule, GEOIPDB)));
+
+            updating.set(false);
+        }
     }
 
     /**

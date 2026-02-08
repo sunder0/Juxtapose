@@ -1,8 +1,10 @@
 package com.sunder.juxtapose.client;
 
+import com.sunder.juxtapose.client.rule.ProxyRuleEngine;
 import com.sunder.juxtapose.client.system.SystemProxySettingAdapter;
 import com.sunder.juxtapose.common.ApplicationContext;
 
+import java.io.InputStream;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,6 +19,7 @@ public class ClientApplicationContext implements ApplicationContext {
     // group name -> node name
     private Map<String, String> selectNodes = new ConcurrentHashMap<>(16);
     private ClientOperate clientOperate; // 客户端相关操作
+    private ProxyRuleEngine ruleEngine;
     private SystemProxySettingAdapter systemProxySetting; // 系统代理设置
     private ProxyServerNodeManager proxyNodeManager;
 
@@ -69,5 +72,13 @@ public class ClientApplicationContext implements ApplicationContext {
 
     public void registerProxyNodeManager(ProxyServerNodeManager proxyNodeManager) {
         this.proxyNodeManager = proxyNodeManager;
+    }
+
+    public void registerProxyRuleEngine(ProxyRuleEngine ruleEngine) {
+        this.ruleEngine = ruleEngine;
+    }
+
+    public void refreshProxyRules(InputStream yaml) {
+        ruleEngine.reloadRoxyRules(yaml);
     }
 }

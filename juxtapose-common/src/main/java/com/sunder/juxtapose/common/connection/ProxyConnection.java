@@ -80,6 +80,8 @@ public class ProxyConnection implements Connection {
             lock.lock();
             this.proxyChannel = channel;
             changeState(ConnectionState.CONNECTED);
+
+            logger.info("Connection[{}] bind channel[{}] successful.", connectId, channel.id());
         } finally {
             lock.unlock();
         }

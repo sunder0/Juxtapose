@@ -99,7 +99,6 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
         this.bootstrap = bootstrap;
 
         this.connManager = getModuleByName(DefaultConnectionManager.NAME, true, DefaultConnectionManager.class);
-        //this.cachedChannelPool = new HttpCachedChannelPool(bootstrap, 60 * 1_000L);
 
         super.initInternal();
     }
@@ -112,7 +111,6 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
 
     @Override
     protected void destroyInternal() {
-        cachedChannelPool.shutdown();
         parent.removeProxyRequestSubscriber(this);
 
         super.destroyInternal();
