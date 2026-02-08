@@ -58,6 +58,10 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
 
     @Override
     protected void initInternal() {
+        ThreadFactoryBuilder tfBuilder = ThreadFactoryBuilder.create().setNamePrefix("Tcp-Proxy-Dispatcher-");
+        tfBuilder.setUncaughtExceptionHandler((t, e)
+                -> logger.error("Tcp proxy dispatcher thread[{}] error[{}].", t.getName(), e.getMessage(), e));
+
         int cpus = Runtime.getRuntime().availableProcessors();
         this.dispatcherExecutor = new ThreadPoolExecutor(
                 cpus,
@@ -65,7 +69,7 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                 10,
                 TimeUnit.SECONDS,
                 new SynchronousQueue<>(),
-                ThreadFactoryBuilder.create().setNamePrefix("Tcp-Proxy-Dispatcher-").build(),
+                tfBuilder.build(),
                 new ThreadPoolExecutor.DiscardPolicy());
 
         for (int i = 0; i < cpus; i++) {
@@ -168,6 +172,8 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                 }
             } catch (InterruptedException ex) {
                 logger.error("Proxy task thread interrupted, {}", ex.getMessage(), ex);
+            } catch (Exception ex) {
+                logger.error("Proxy task thread error, {}", ex.getMessage(), ex);
             } finally {
                 proxySubscribers.remove(this);
             }
