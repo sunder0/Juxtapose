@@ -86,12 +86,16 @@ public class ProxyRuleEngine extends BaseComponent<ProxyCoreComponent> {
     public void reloadRoxyRules(InputStream yaml) {
         boolean canUpdate = updating.compareAndSet(false, true);
         if (canUpdate) {
-            prcfg.loadYamlStream(yaml);
+            try {
+                prcfg.loadYamlStream(yaml);
 
-            proxyRules.clear();
-            prcfg.getRules().forEach(rule -> addRule(parseRule(rule, GEOIPDB)));
-
-            updating.set(false);
+                proxyRules.clear();
+                prcfg.getRules().forEach(rule -> addRule(parseRule(rule, GEOIPDB)));
+            } catch (Exception ex) {
+                logger.error("Proxy rule update error[{}].", ex.getMessage(), ex);
+            } finally {
+                updating.set(false);
+            }
         }
     }
 
