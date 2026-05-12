@@ -4,6 +4,7 @@ import cn.hutool.core.thread.ThreadFactoryBuilder;
 import com.sunder.juxtapose.common.BaseCompositeComponent;
 import com.sunder.juxtapose.common.ComponentLifecycleListener;
 import com.sunder.juxtapose.common.Platform;
+import com.sunder.juxtapose.common.ProxyProtocol;
 import com.sunder.juxtapose.common.connection.Connection;
 import com.sunder.juxtapose.common.proxy.ProxyMessageReceiver;
 import com.sunder.juxtapose.common.proxy.ProxyRequest;
@@ -176,6 +177,10 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                 logger.error("Proxy task thread error, {}", ex.getMessage(), ex);
             } finally {
                 proxySubscribers.remove(this);
+                if (!Thread.currentThread().isInterrupted()) {
+                    logger.warn("ProxyTask thread died unexpectedly, restarting...");
+                    dispatcherExecutor.execute(new ProxyTask());
+                }
             }
         }
 
@@ -188,6 +193,10 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
         @Override
         public void subscribe(ProxyTaskRequest request) {
             boolean result = taskQueue.offer(request);
+            if (!result) {
+                logger.error("ProxyTask queue full, dropping request for [{}].", request.getHost());
+                request.getClientChannel().close();
+            }
         }
 
     }
@@ -220,6 +229,9 @@ public class TcpProxyDispatchComponent extends BaseCompositeComponent<ProxyCoreC
                 logger.info("Connect to the real server:[{}:{}] failed, serialId[{}].",
                         request.getHost(), request.getPort(), request.getSerialId(), cf.cause());
                 connection.close();
+                if (ProxyProtocol.HTTP == connection.getProxyRequest().getProtocol()) {
+                    request.close();
+                }
             }
         }
     }

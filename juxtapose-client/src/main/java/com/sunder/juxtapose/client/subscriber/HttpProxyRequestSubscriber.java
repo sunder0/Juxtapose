@@ -144,6 +144,11 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
     @Override
     public void receive(Long serialId, ByteBuf message) {
         Connection connection = connManager.getConnection(serialId.toString());
+        if (connection == null) {
+            message.release();
+            return;
+        }
+
         Channel channel = connection.getProxyChannel();
         if (channel.isWritable()) {
             connection.writeMessage(message);
@@ -276,8 +281,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-            logger.error("Http(s) proxy channel close an error[{}].", ctx.channel().id());
-            // todo：通知关闭代理服务端对应连接
+            logger.info("Http(s) proxy channel inactive close [{}].", ctx.channel().id());
             connection.closeForce();
             connManager.unregisterTrafficHandler(ctx.channel());
         }
@@ -288,7 +292,7 @@ public class HttpProxyRequestSubscriber extends BaseCompositeComponent<ProxyServ
                 logger.debug("receive proxy server message...[{}]", connection.getConnectId());
                 connection.readMessage(msg);
             } else {
-                ctx.fireChannelRead(ctx);
+                ctx.fireChannelRead(msg);
             }
         }
 

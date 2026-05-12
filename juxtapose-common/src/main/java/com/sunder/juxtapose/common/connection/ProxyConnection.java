@@ -160,8 +160,7 @@ public class ProxyConnection implements Connection {
             if (proxyChannel != null && proxyChannel.isActive()) {
                 if (protocol == ProxyProtocol.JUXTA) {
                     proxyChannel.writeAndFlush(new ProxyCloseMessage(connectId));
-                }
-                if (protocol == ProxyProtocol.DIRECT) {
+                } else {
                     proxyChannel.close();
                 }
             }

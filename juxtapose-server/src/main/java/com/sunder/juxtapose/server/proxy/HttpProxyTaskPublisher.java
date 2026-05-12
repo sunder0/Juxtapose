@@ -305,7 +305,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 uri = new URI(request.uri());
             } catch (URISyntaxException ex) {
                 // eg: 5dfaddfb-90a1-4fa5-841e-0a3a560c76b9.gheapi.com:80
-                String[] hostParts = host.split(":", 2);
+                String[] hostParts = request.uri().split(":", 2);
                 String host = hostParts[0];
                 int port = hostParts.length > 1 ? Integer.parseInt(hostParts[1]) : 80;
                 return new Pair<>(host, port);
@@ -317,7 +317,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 return new Pair<>(host, port);
             } else {
                 // 相对URI，从Host头获取主机信息
-                host = request.headers().get(HttpHeaderNames.HOST);
+                String host = request.headers().get(HttpHeaderNames.HOST);
                 if (host == null) {
                     sendErrorResponse(ctx, HttpResponseStatus.BAD_REQUEST, request.protocolVersion(),
                             "Missing Host header");
@@ -326,9 +326,8 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
 
                 // 处理可能包含端口的Host头
                 String[] hostParts = host.split(":", 2);
-                String host = hostParts[0];
                 int port = hostParts.length > 1 ? Integer.parseInt(hostParts[1]) : 80;
-                return new Pair<>(host, port);
+                return new Pair<>(hostParts[0], port);
             }
         }
 
@@ -365,7 +364,11 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-            logger.info("Http(s) client channel close[{}]...", ctx.channel().id());
+            logger.info("Http(s) client channel close[{}], serialId[{}].", ctx.channel().id(), serialId);
+            Connection connection = connManager.getConnection(String.valueOf(serialId));
+            if (connection != null) {
+                connection.closeForce();
+            }
         }
 
         @Override
@@ -590,10 +593,29 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
         }
 
         @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            logger.info("Http plaintext client channel close[{}], serialId[{}].", ctx.channel().id(), serialId);
+            writeEncoder.close();
+            Connection connection = connManager.getConnection(String.valueOf(serialId));
+            if (connection != null) {
+                connection.closeForce();
+            }
+        }
+
+        @Override
         public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+            ctx.pipeline().addLast(new IdleStateHandler(120, 0, 0, TimeUnit.SECONDS));
             // 从代理服务器返回的就是http报文，不需要在此encode，但是需要decode从客户端传过来的request
             ctx.pipeline().remove(HttpResponseEncoder.class);
             ctx.pipeline().remove(HttpRequestHandler.class);
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if (evt instanceof IdleStateEvent) {
+                logger.info("PlaintextProxy channel idle, closing: {}", ctx.channel().id());
+                ctx.close();
+            }
         }
     }
 }
