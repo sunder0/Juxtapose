@@ -544,6 +544,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
             writeEncoder.writeOutbound(firstRequest);
             ByteBuf result = writeEncoder.readOutbound();
             writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
+            ReferenceCountUtil.release(writeEncoder.readOutbound());
             try {
                 ProxyRequestMessage message = new ProxyRequestMessage(serialId, proxyHost, proxyPort, result.retain());
                 ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientChannel);
@@ -571,6 +572,7 @@ public class HttpProxyTaskPublisher extends BaseCompositeComponent<ProxyCoreComp
                 writeEncoder.writeOutbound(msg);
                 ByteBuf buf = writeEncoder.readOutbound();
                 writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
+                ReferenceCountUtil.release(writeEncoder.readOutbound());
                 try {
                     ProxyRequestMessage message = new ProxyRequestMessage(serialId, proxyHost, proxyPort, buf.retain());
                     ProxyTaskRequest ptr = new ProxyTaskRequest(ProxyProtocol.HTTP, message, clientChannel);

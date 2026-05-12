@@ -407,6 +407,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
             writeEncoder.writeOutbound(firstRequest);
             ByteBuf result = writeEncoder.readOutbound();
             writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
+            ReferenceCountUtil.release(writeEncoder.readOutbound());
             try {
                 proxyRequest.transferMessage(result.retain());
             } finally {
@@ -441,6 +442,7 @@ public class HttpProxyRequestPublisher extends BaseCompositeComponent<ProxyCoreC
                 writeEncoder.writeOutbound(msg);
                 ByteBuf buf = writeEncoder.readOutbound();
                 writeEncoder.writeOutbound(LastHttpContent.EMPTY_LAST_CONTENT);
+                ReferenceCountUtil.release(writeEncoder.readOutbound());
                 try {
                     proxyRequest.transferMessage(buf.retain());
                 } finally {
