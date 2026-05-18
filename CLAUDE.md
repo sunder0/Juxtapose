@@ -76,6 +76,29 @@ All major components extend `ToplevelComponent → BaseCompositeComponent → Ba
 - **Session management** (`server/session/`) — tracks active proxy sessions
 - **Connection management** (`server/connection/`) — manages upstream connections
 
+### JUXTA Protocol (Custom)
+
+JUXTA is the primary proprietary protocol. The wire format uses Netty's `LengthFieldBasedFrameDecoder` (header: 4-byte length field at offset 0). Each frame starts with a 1-byte `serviceId` that determines message type:
+
+| serviceId | Message type |
+|-----------|-------------|
+| `PingMessage.SERVICE_ID` | keepalive ping |
+| `PongMessage.SERVICE_ID` | keepalive pong |
+| `AuthRequestMessage.SERVICE_ID` | auth handshake |
+| `AuthResponseMessage.SERVICE_ID` | auth result |
+| `ProxyRequestMessage.SERVICE_ID` | new proxy target |
+| `ProxyCloseMessage.SERVICE_ID` | explicit connection teardown |
+
+Flow control: `JuxtaProxyTaskPublisher.ProxyRelayMessageHandler` implements Netty write-buffer back-pressure — when the downstream channel becomes non-writable (exceeds 4 MB high-water mark), it calls `channel.config().setAutoRead(false)` on all associated upstream channels; `autoRead` is restored when the buffer drains below 32 KB.
+
+### TLS Constraints
+
+TLS is one-way only (server authentication). The code explicitly throws `UnsupportedOperationException` for mutual TLS. Only PEM format (`encrypt.method=pem`) is supported. TLSv1.3 is conditionally enabled only on JDK ≥ 1.8.0_333; older JDK 8 builds use TLSv1.2 only. For self-signed certificates, the client downloads the server's public key from `encrypt.server.port` (default 2202) — configure `certurl` in `proxy_servers.yaml` entries that use self-signed certs; CA-signed certs do not need this field.
+
+### Known HTTP Proxy Issues
+
+`HTTP_PROXY_REVIEW.md` documents 17 bugs in `HttpProxyTaskPublisher` (server) and `HttpProxyRequestSubscriber` (client). Critical ones: CONNECT URI parsing routes all HTTPS to `0.0.0.0` (fatal for HTTPS), `ProxyTask` thread crash causes permanent service hang without restart, and authentication returns 401 instead of RFC-required 407.
+
 ### Configuration
 
 | File | Purpose |
@@ -87,6 +110,8 @@ All major components extend `ToplevelComponent → BaseCompositeComponent → Ba
 | `conf/logback.xml` | Logback config (auto-scans every 10s; 200MB rolling files) |
 
 `ConfigManager` handles hot-reload: it watches config files and notifies `ConfigListener` implementations.
+
+The `Default` proxy group in `proxy_servers.yaml` has special significance: in RULE mode it is the catch-all group when no rule matches. Renaming it requires updating `proxy_rules.yaml` as well.
 
 ### Key Dependencies
 

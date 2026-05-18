@@ -29,11 +29,7 @@
 			<binaries>
 				<outputDirectory>lib/</outputDirectory>
 				<unpack>false</unpack>
-				<dependencySets>
-					<dependencySet>
-						<outputDirectory>lib/</outputDirectory>
-					</dependencySet>
-				</dependencySets>
+				<includeDependencies>false</includeDependencies>
 			</binaries>
 		</moduleSet>
 	</moduleSets>
